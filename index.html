@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContentManager Pro | Gestão Estratégica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        slate: { 850: '#1e293b', 900: '#0f172a', 950: '#020617' }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both'
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        /* Custom Scrollbar Minimalista */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background-color: #475569; }
+
+        /* Utility: Hide Scrollbar but keep functionality */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Animations & Transistions */
+        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .sidebar-item:hover .item-actions { opacity: 1; pointer-events: auto; transform: translateY(-50%) translateX(0); }
+        .block-card { transition: transform 0.2s, box-shadow 0.2s; will-change: transform; }
+        .block-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+        
+        .modal-bg { background-color: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); }
+        .lock-bg { background-color: #0f172a; } /* Slate 900 */
+        
+        /* Histórico Expandir/Retrair */
+        .history-expanded { animation: slideDown 0.3s ease-out forwards; transform-origin: top; }
+        @keyframes slideDown { 
+            from { opacity: 0; transform: translateY(-10px); max-height: 0; } 
+            to { opacity: 1; transform: translateY(0); max-height: 800px; } 
+        }
+
+        /* Upload Dashed Box */
+        .dashed-upload { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%2394a3b8' stroke-width='2' stroke-dasharray='8%2c8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e"); }
+        .dark .dashed-upload { background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%23475569' stroke-width='2' stroke-dasharray='8%2c8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e"); }
+
+        .profile-img { object-fit: cover; width: 100%; height: 100%; }
+        
+        /* UI Elements */
+        .checklist-item.checked span { text-decoration: line-through; color: #94a3b8; }
+        .widget-type-btn.selected { border-color: #4f46e5; background-color: #eef2ff; color: #4f46e5; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1); }
+        .dark .widget-type-btn.selected { background-color: #312e81; color: #a5b4fc; border-color: #6366f1; }
+        
+        /* Signal Selection in Widget Modal */
+        .signal-select-btn.selected { border-color: #6366f1; background-color: #eef2ff; color: #4f46e5; }
+        .dark .signal-select-btn.selected { background-color: #312e81; color: #a5b4fc; }
+
+        /* Mobile Overlay */
+        #sidebarOverlay.active { display: block; opacity: 1; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+
+    <!-- TELA DE BLOQUEIO (SEGURANÇA) -->
+    <div id="lockScreen" class="fixed inset-0 z-[100] lock-bg flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-8 text-center animate-fade-in relative">
+            <div class="mb-6 flex justify-center">
+                <div class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center text-3xl text-white shadow-lg shadow-indigo-500/30">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-800 dark:text-white mb-2">ContentManager Pro</h1>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mb-8">Área restrita. Identifique-se.</p>
+            
+            <div id="lockForm">
+                <input type="password" id="unlockPass" placeholder="Senha de Acesso" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all text-center tracking-widest font-bold text-lg mb-4" onkeypress="if(event.key === 'Enter') attemptUnlock()">
+                
+                <button onclick="attemptUnlock()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/30 transition-transform active:scale-95">
+                    Entrar <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+
+            <div id="lockTimer" class="hidden mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-900/30">
+                <p class="text-red-600 dark:text-red-400 text-xs font-bold uppercase mb-1">Acesso Bloqueado</p>
+                <p class="text-slate-600 dark:text-slate-300 text-sm">Tente novamente em:</p>
+                <p id="countdown" class="text-2xl font-mono font-bold text-slate-800 dark:text-white mt-1">00:00</p>
+            </div>
+
+            <p id="lockError" class="text-red-500 text-xs font-bold mt-4 hidden animate-shake"><i class="fas fa-exclamation-triangle"></i> Senha incorreta</p>
+        </div>
+    </div>
+
+    <!-- OVERLAY MOBILE -->
+    <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden backdrop-blur-sm transition-opacity opacity-0"></div>
+
+    <!-- INPUT ESCONDIDO PARA UPLOAD -->
+    <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="processarRestauracaoFile(this)">
+
+    <!-- SIDEBAR -->
+    <aside id="mainSidebar" class="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-30 shadow-2xl md:shadow-none transform -translate-x-full md:translate-x-0 transition-transform duration-300 md:relative">
+        <div class="h-16 flex items-center justify-between px-3 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10">
+            <div class="flex gap-1 overflow-x-auto no-scrollbar items-center">
+                <button onclick="mudarView('posts')" id="btnModePosts" class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-sm border border-transparent" title="Estoque"><i class="fas fa-box-open text-xs"></i></button>
+                <button onclick="mudarView('paginas')" id="btnModeStrategy" class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-sm border border-transparent" title="Estratégia"><i class="fas fa-rocket text-xs"></i></button>
+                <button onclick="mudarView('timeline')" id="btnModeTimeline" class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-sm border border-transparent" title="Timeline"><i class="fas fa-stream text-xs"></i></button>
+                <button onclick="mudarView('devices')" id="btnModeDevices" class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-sm border border-transparent" title="Celulares"><i class="fas fa-mobile-alt text-xs"></i></button>
+                <button onclick="mudarView('settings')" id="btnModeSettings" class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-sm border border-transparent" title="Configurações"><i class="fas fa-cog text-xs"></i></button>
+            </div>
+            <div class="flex gap-1">
+                <button onclick="toggleTheme()" class="w-7 h-7 rounded-full text-slate-400 hover:text-yellow-500 dark:text-slate-500 dark:hover:text-yellow-400 transition flex items-center justify-center"><i class="fas fa-moon dark:hidden"></i><i class="fas fa-sun hidden dark:block"></i></button>
+                <button onclick="toggleSidebar()" class="md:hidden w-7 h-7 rounded-full text-slate-400 hover:text-red-500 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto px-2 py-2" id="sidebarContent"></div>
+
+        <div class="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 shrink-0">
+            <button onclick="abrirModalPagina()" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-500 dark:text-slate-400 hover:text-indigo-600 py-2 rounded-lg text-xs font-bold transition shadow-sm group">
+                <i class="fas fa-plus"></i> Nova Página
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative">
+        <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center px-4 md:px-6 sticky top-0 z-10 shadow-sm/50 backdrop-blur-md bg-opacity-95 dark:bg-opacity-95">
+            <div class="flex items-center gap-3 md:gap-4 overflow-hidden">
+                <button onclick="toggleSidebar()" class="md:hidden text-slate-500 hover:text-indigo-600 p-2 -ml-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"><i class="fas fa-bars text-lg"></i></button>
+                
+                <div id="headerLogo" class="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 text-lg shadow-sm overflow-hidden flex-shrink-0 transition-all"></div>
+                
+                <div class="overflow-hidden flex flex-col justify-center min-w-0">
+                    <div class="flex items-center gap-2 group">
+                        <h1 id="headerTitulo" class="text-base md:text-lg font-bold text-slate-800 dark:text-white leading-tight truncate">Carregando...</h1>
+                        <button onclick="editarPaginaAtual()" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition px-1" title="Editar Página"><i class="fas fa-pen text-[10px]"></i></button>
+                    </div>
+                    <div id="headerSubtitle" class="mt-0"><div id="headerStats" class="flex gap-3 text-[10px] md:text-xs font-medium text-slate-500 dark:text-slate-400 truncate animate-fade-in"></div></div>
+                </div>
+            </div>
+            
+            <div id="headerActions" class="flex items-center gap-2 flex-shrink-0"></div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth" id="mainContainer"></div>
+    </main>
+
+    <!-- ================= MODAIS ================= -->
+    
+    <!-- Modal: Verificação de Segurança (Genérico) -->
+    <div id="modalSecurityCheck" class="hidden fixed inset-0 modal-bg z-[110] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden animate-slide-up border border-indigo-100 dark:border-indigo-900/30">
+            <div class="p-5 text-center">
+                <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-600 dark:text-indigo-400 text-xl">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <h3 class="font-bold text-slate-800 dark:text-white mb-1">Confirmação de ADM</h3>
+                <p id="securityMsg" class="text-xs text-slate-500 dark:text-slate-400 mb-4">Esta ação requer a senha mestre.</p>
+                <input type="password" id="securityPass" placeholder="Senha de ADM" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-center outline-none focus:border-indigo-500 dark:text-white mb-3">
+                <p id="securityError" class="text-red-500 text-[10px] font-bold mb-3 hidden"><i class="fas fa-times-circle"></i> Senha de ADM incorreta</p>
+                <div class="flex gap-2">
+                    <button onclick="fecharModal('modalSecurityCheck')" class="flex-1 py-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 text-xs font-bold">Cancelar</button>
+                    <button onclick="confirmarAcaoSegura()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-bold shadow-md">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Compartilhar Bloco -->
+    <div id="modalCompartilhar" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><i class="fas fa-share-alt text-indigo-500"></i> Compartilhar</h3>
+                <button onclick="fecharModal('modalCompartilhar')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4 bg-yellow-50 dark:bg-yellow-900/10 border-b border-yellow-100 dark:border-yellow-900/20 text-xs text-yellow-700 dark:text-yellow-400 px-6 py-3">
+                <i class="fas fa-info-circle mr-1"></i> As páginas selecionadas terão acesso de visualização e uso independente.
+            </div>
+            <div class="p-6">
+                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3 ml-1">Selecione as páginas</label>
+                <div id="listaCompartilhamento" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar"></div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-end gap-3">
+                <button onclick="fecharModal('modalCompartilhar')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarCompartilhamento()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md shadow-indigo-200 dark:shadow-none transition-transform hover:-translate-y-0.5">Salvar Acesso</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Seleção de Sinal -->
+    <div id="modalSinal" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden transform transition-all animate-slide-up">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800 dark:text-white">Adicionar Sinal</h3>
+                <button onclick="fecharModal('modalSinal')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4">
+                <div class="flex justify-center gap-4 mb-5">
+                    <button onclick="selecionarCorSinal('amber')" class="w-8 h-8 rounded-full bg-amber-500 ring-2 ring-offset-2 ring-transparent hover:scale-110 transition ring-offset-white dark:ring-offset-slate-800 focus:ring-amber-300 signal-color-btn selected" data-color="amber"></button>
+                    <button onclick="selecionarCorSinal('red')" class="w-8 h-8 rounded-full bg-red-500 ring-2 ring-offset-2 ring-transparent hover:scale-110 transition ring-offset-white dark:ring-offset-slate-800 focus:ring-red-300 signal-color-btn" data-color="red"></button>
+                    <button onclick="selecionarCorSinal('emerald')" class="w-8 h-8 rounded-full bg-emerald-500 ring-2 ring-offset-2 ring-transparent hover:scale-110 transition ring-offset-white dark:ring-offset-slate-800 focus:ring-emerald-300 signal-color-btn" data-color="emerald"></button>
+                </div>
+                <div class="grid grid-cols-4 gap-3">
+                    <button onclick="salvarSinal('fa-bell')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-bell"></i></button>
+                    <button onclick="salvarSinal('fa-exclamation-circle')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-exclamation-circle"></i></button>
+                    <button onclick="salvarSinal('fa-question-circle')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-question-circle"></i></button>
+                    <button onclick="salvarSinal('fa-star')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-star"></i></button>
+                    <button onclick="salvarSinal('fa-bolt')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-bolt"></i></button>
+                    <button onclick="salvarSinal('fa-fire')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-fire"></i></button>
+                    <button onclick="salvarSinal('fa-check-circle')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-check-circle"></i></button>
+                    <button onclick="salvarSinal('fa-flag')" class="aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-slate-500 dark:text-slate-400 flex items-center justify-center text-lg transition icon-btn"><i class="fas fa-flag"></i></button>
+                </div>
+                <button onclick="salvarSinal(null)" class="w-full mt-4 py-2 text-xs font-bold text-red-400 hover:text-red-500 border border-dashed border-red-200 dark:border-red-900/30 rounded-lg transition hover:bg-red-50 dark:hover:bg-red-900/10">Remover Sinal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Adicionar Widget -->
+    <div id="modalWidget" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+                <div><h3 class="text-xl font-bold text-slate-800 dark:text-white">Adicionar Bloco</h3><p class="text-xs text-slate-500 dark:text-slate-400">Personalize seu Hub</p></div>
+                <button onclick="fecharModal('modalWidget')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar">
+                <div class="grid grid-cols-5 gap-2 mb-6">
+                    <button onclick="selecionarTipoWidget('short')" class="widget-type-btn p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all selected" data-type="short"><i class="fas fa-font text-lg"></i> <span class="text-[10px] font-bold uppercase">Texto</span></button>
+                    <button onclick="selecionarTipoWidget('long')" class="widget-type-btn p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all" data-type="long"><i class="fas fa-align-left text-lg"></i> <span class="text-[10px] font-bold uppercase">Nota</span></button>
+                    <button onclick="selecionarTipoWidget('checklist')" class="widget-type-btn p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all" data-type="checklist"><i class="fas fa-check-square text-lg"></i> <span class="text-[10px] font-bold uppercase">Lista</span></button>
+                    <button onclick="selecionarTipoWidget('link')" class="widget-type-btn p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all" data-type="link"><i class="fas fa-link text-lg"></i> <span class="text-[10px] font-bold uppercase">Botão</span></button>
+                    <button onclick="selecionarTipoWidget('signal')" class="widget-type-btn p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all" data-type="signal"><i class="fas fa-traffic-light text-lg"></i> <span class="text-[10px] font-bold uppercase">Sinal</span></button>
+                </div>
+                <div class="space-y-4">
+                    <input type="hidden" id="widgetType" value="short">
+                    
+                    <div id="fieldLabelContainer">
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Título do Bloco</label>
+                        <input type="text" id="widgetLabel" placeholder="Ex: Metas do Mês" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:text-white transition-colors">
+                    </div>
+                    
+                    <div id="fieldSignalIcon" class="hidden animate-fade-in">
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 ml-1">Selecione o Símbolo</label>
+                        <div class="grid grid-cols-4 gap-3 mb-4">
+                            <button onclick="selectWidgetIcon(this, 'fa-bell')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-bell"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-exclamation-circle')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-exclamation-circle"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-question-circle')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-question-circle"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-star')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-star"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-bolt')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-bolt"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-fire')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-fire"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-check-circle')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-check-circle"></i></button>
+                            <button onclick="selectWidgetIcon(this, 'fa-flag')" class="signal-select-btn aspect-square rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 border border-slate-200 dark:border-slate-600 transition flex items-center justify-center text-xl"><i class="fas fa-flag"></i></button>
+                        </div>
+                        <input type="hidden" id="selectedIconValue">
+                    </div>
+
+                    <div id="extraLinkField" class="hidden animate-fade-in"><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">URL de Destino</label><input type="text" id="widgetUrl" placeholder="https://..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:text-white transition-colors"></div>
+                    
+                    <div id="fieldChecklist" class="hidden animate-fade-in">
+                        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Itens da Lista</label>
+                        <div class="flex gap-2 mb-3"><input type="text" id="tempCheckItem" placeholder="Digite e pressione Enter..." class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500 dark:text-white" onkeypress="handleEnterCheck(event)"><button onclick="addTempCheckItem()" class="bg-indigo-600 text-white px-4 rounded-lg hover:bg-indigo-700 transition"><i class="fas fa-plus"></i></button></div>
+                        <div id="tempChecklistList" class="space-y-2 max-h-32 overflow-y-auto pr-1"></div>
+                    </div>
+                    
+                    <div id="fieldText" class="text-xs text-slate-400 dark:text-slate-500 text-center italic mt-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">O conteúdo deste bloco será preenchido diretamente na página.</div>
+                </div>
+            </div>
+            <div class="p-6 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                <button onclick="fecharModal('modalWidget')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarNovoWidget()" class="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-md shadow-indigo-200 dark:shadow-none transition-all transform hover:-translate-y-0.5">Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Cadastro/Edição de Dispositivo -->
+    <div id="modalDispositivo" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2"><i class="fas fa-mobile-alt text-indigo-500"></i> Dispositivo</h3>
+                <button onclick="fecharModal('modalDispositivo')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="deviceId">
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Modelo</label><input type="text" id="deviceModel" placeholder="Ex: iPhone 13 Pro" class="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Responsável</label><input type="text" id="deviceResp" class="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white"></div>
+                    <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Número/ID</label><input type="text" id="deviceNumber" class="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 ml-1">Contas Vinculadas</label>
+                    <div id="devicePagesList" class="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-600 rounded-xl p-2 space-y-1 bg-slate-50 dark:bg-slate-900/50 custom-scrollbar"></div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-end gap-3">
+                <button onclick="fecharModal('modalDispositivo')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarDispositivo()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-transform hover:-translate-y-0.5">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Input Genérico (Pagina/Nicho) -->
+    <div id="modalInput" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700"><h3 id="modalInputTitle" class="text-lg font-bold text-slate-800 dark:text-white">Configuração</h3></div>
+            <div class="p-6 space-y-5">
+                <div id="fieldNomeContainer"><label id="labelNomeField" class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Nome</label><input type="text" id="inputGeralNome" class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-3 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:text-white transition-colors"></div>
+                <div id="fieldNichoContainer" class="hidden"><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Nicho / Categoria</label><input type="text" id="inputGeralNicho" list="listaNichos" class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white transition-colors"><datalist id="listaNichos"></datalist></div>
+                <div id="fieldImageContainer" class="hidden">
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Logo da Página</label>
+                    <input type="file" id="inputGeralFile" accept="image/*" class="hidden" onchange="previewImagem(event)">
+                    <div onclick="document.getElementById('inputGeralFile').click()" class="dashed-upload h-32 rounded-xl flex flex-col items-center justify-center text-slate-400 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 relative overflow-hidden group border border-slate-200 dark:border-slate-700 transition-colors">
+                        <img id="previewImg" src="" class="absolute inset-0 w-full h-full object-cover hidden">
+                        <div id="previewPlaceholder" class="flex flex-col items-center group-hover:text-indigo-500 transition-colors"><i class="fas fa-cloud-upload-alt text-2xl mb-2"></i><span class="text-xs font-bold uppercase tracking-wide">Enviar Imagem</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                <button onclick="fecharModal('modalInput')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
+                <button id="btnSalvarGeral" class="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 shadow-md transition-transform hover:-translate-y-0.5">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmação de Exclusão (Segurança) -->
+    <div id="modalExcluir" class="hidden fixed inset-0 modal-bg z-[60] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden text-center transform transition-all border border-red-100 dark:border-red-900/30 animate-slide-up">
+            <div class="p-6">
+                <div class="w-16 h-16 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-5 text-2xl animate-pulse"><i class="fas fa-trash-alt"></i></div>
+                <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-2">Tem certeza?</h3>
+                <p id="msgExclusao" class="text-sm text-slate-500 dark:text-slate-400 mb-6 px-4">Esta ação é irreversível e apagará os dados.</p>
+                <div class="mb-4 text-left">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Confirmação de ADM</label>
+                    <input type="password" id="senhaExclusao" placeholder="Senha de ADM" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 mt-1 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 dark:text-white transition-colors">
+                    <p id="erroSenha" class="text-red-500 text-xs mt-2 hidden font-bold flex items-center gap-1"><i class="fas fa-exclamation-circle"></i> Senha de ADM incorreta!</p>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button onclick="fecharModal('modalExcluir')" class="flex-1 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium">Cancelar</button>
+                    <button onclick="confirmarExclusao()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-red-200 dark:shadow-none transition-transform hover:-translate-y-0.5">Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Novo Bloco de Posts -->
+    <div id="modalBloco" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md dark:bg-slate-800 animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white">Novo Grupo de Conteúdo</h3>
+                <button onclick="fecharModal('modalBloco')" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Nome do Tema</label><input type="text" id="blocoNome" placeholder="Ex: Dicas de Vendas" class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Qtd Posts</label><input type="number" id="blocoQtd" placeholder="1" min="1" class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-3 outline-none focus:border-indigo-500 dark:text-white"></div>
+                    <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1">Data Criação</label><input type="date" id="blocoData" class="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl p-3 outline-none text-slate-600 dark:text-slate-300 focus:border-indigo-500"></div>
+                </div>
+            </div>
+            <div class="p-6 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                <button onclick="fecharModal('modalBloco')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarBloco()" class="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-transform hover:-translate-y-0.5">Criar Estoque</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Registrar Uso -->
+    <div id="modalUso" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm dark:bg-slate-800 animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700"><h3 class="font-bold text-slate-800 dark:text-white text-lg">Registrar Ciclo</h3></div>
+            <div class="p-6 space-y-5">
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 ml-1">Data da Postagem</label><input type="date" id="usoDataUtilizacao" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none dark:text-white focus:border-indigo-500"></div>
+                <div>
+                    <div class="flex justify-between items-center mb-1 ml-1"><label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Liberar Novamente</label><span class="text-[10px] text-indigo-500 font-bold cursor-pointer" onclick="document.getElementById('usoDataLiberacao').focus()">Editar manual</span></div>
+                    <input type="date" id="usoDataLiberacao" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none dark:text-white focus:border-indigo-500">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="setarLiberacao(90)" class="flex-1 text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 py-2.5 rounded-lg font-bold border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 transition">+90 Dias</button>
+                    <button onclick="setarLiberacao(120)" class="flex-1 text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 py-2.5 rounded-lg font-bold border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 transition">+120 Dias</button>
+                </div>
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 ml-1">Observação / Resultado</label><textarea id="usoObs" placeholder="Ex: O alcance foi ótimo nos stories..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none h-20 text-sm resize-none dark:text-white focus:border-indigo-500"></textarea></div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                <button onclick="fecharModal('modalUso')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarUso()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-0.5">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Evoluir (Versioning) -->
+    <div id="modalEvoluir" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm dark:bg-slate-800 text-center animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700"><h3 class="font-bold text-slate-800 dark:text-white text-lg">Evoluir Conteúdo</h3><p class="text-xs text-slate-500">Criar versão melhorada (v.Next)</p></div>
+            <div class="p-8 space-y-4">
+                <p class="text-sm text-slate-600 dark:text-slate-300 font-medium">Quantos posts reaproveitados?</p>
+                <input type="number" id="evoluirQtd" class="w-24 mx-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-center text-2xl font-bold outline-none dark:text-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100">
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                <button onclick="fecharModal('modalEvoluir')" class="flex-1 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarEvolucao()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg transition-transform hover:-translate-y-0.5">Lançar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edição Rápida (Bloco) -->
+    <div id="modalEditarBloco" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md dark:bg-slate-800 animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700"><h3 class="font-bold text-slate-800 dark:text-white">Editar Grupo</h3></div>
+            <div class="p-6 space-y-4">
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 ml-1 mb-1">Nome</label><input type="text" id="editarBlocoNome" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none dark:text-white focus:border-indigo-500"></div>
+                <div><label class="block text-xs font-bold text-slate-500 dark:text-slate-400 ml-1 mb-1">Quantidade</label><input type="number" id="editarBlocoQtd" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 outline-none dark:text-white focus:border-indigo-500"></div>
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                <button onclick="fecharModal('modalEditarBloco')" class="px-5 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarEdicaoBloco()" class="bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-6 rounded-xl font-bold shadow-md">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Qtd Rápida -->
+    <div id="modalQtd" class="hidden fixed inset-0 modal-bg z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm dark:bg-slate-800 text-center animate-slide-up">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700"><h3 class="font-bold text-slate-800 dark:text-white">Ajustar Volume</h3></div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600 dark:text-slate-300">Nova quantidade de posts:</p>
+                <input type="number" id="editarQtdInput" class="w-24 mx-auto bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-center text-xl font-bold outline-none dark:text-white focus:border-indigo-500">
+            </div>
+            <div class="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                <button onclick="fecharModal('modalQtd')" class="flex-1 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="salvarEdicaoQtd()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl font-bold shadow-md">Atualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DA APLICAÇÃO -->
+    <script>
+// --- CONFIGURAÇÃO DO SUPABASE ---
+// Substitua ABAIXO pelos seus dados reais do Supabase (Project Settings > API)
+const SU_URL = 'sb_publishable_b7rS85fwbaXZ862hmeKQTA__6RADKNt'; 
+const SU_KEY = 'sb_secret_aQPkNMy1KBYWuuBlvbruoA_YfnlzuDg';        
+
+// Inicializa o cliente
+const supabase = window.supabase ? window.supabase.createClient(SU_URL, SU_KEY) : null;
+
+// Função para salvar no banco (Sincronização)
+async function syncToSupabase() {
+    if (!supabase) return;
+    try {
+        await supabase.from('app_storage').upsert([
+            { key: 'cm_paginas', value: app.paginas },
+            { key: 'cm_blocos', value: app.blocos },
+            { key: 'cm_dispositivos', value: app.dispositivos }
+        ]);
+        console.log('Dados salvos no Supabase com sucesso.');
+    } catch (e) {
+        console.error('Erro na sincronização Supabase:', e);
+    }
+}
+        // --- SENHA MESTRE DE ADM ---
+        const MASTER_ADMIN_PASS = "384157";
+
+        // --- FUNÇÃO HASH SEGURA (SHA-256) ---
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        // --- ESTADO GLOBAL ---
+        const app = { 
+            view: 'posts', 
+            paginaAtiva: null, 
+            imagemTemp: null, 
+            paginas: [], 
+            blocos: [], 
+            dispositivos: [], 
+            exclusao: { tipo: null, id: null },
+            tempChecklist: [],
+            paginaParaSinal: null,
+            corSinalTemp: 'amber',
+            blocoParaCompartilhar: null,
+            estoqueTab: 'meus', 
+            filtroTag: null,
+            dispositivoEdicao: null,
+            
+            // SECURITY STATE
+            auth: {
+                passwordHash: null, // Armazena o hash, não a senha
+                attempts: 0,
+                lockedUntil: null
+            },
+            sessionActive: false,
+            pendingAction: null // Para ações que requerem confirmação (reset, restore)
+        };
+
+        // --- AUTH & SECURITY LOGIC ---
+        function checkAuth() {
+            if (app.auth.lockedUntil) {
+                const now = Date.now();
+                if (now < app.auth.lockedUntil) {
+                    showLockoutState();
+                    return;
+                } else {
+                    app.auth.lockedUntil = null;
+                    app.auth.attempts = 0;
+                    saveAuth();
+                    hideLockoutState();
+                }
+            }
+            if (!app.sessionActive) {
+                document.getElementById('lockScreen').classList.remove('hidden');
+            }
+        }
+
+        async function attemptUnlock() {
+            const input = document.getElementById('unlockPass');
+            const pass = input.value;
+            const errorMsg = document.getElementById('lockError');
+
+            if (app.auth.lockedUntil && Date.now() < app.auth.lockedUntil) return;
+
+            const inputHash = await sha256(pass);
+
+            if (inputHash === app.auth.passwordHash) {
+                app.sessionActive = true;
+                app.auth.attempts = 0;
+                saveAuth();
+                document.getElementById('lockScreen').classList.add('hidden');
+                errorMsg.classList.add('hidden');
+                input.value = '';
+            } else {
+                app.auth.attempts++;
+                errorMsg.innerText = `Senha incorreta (${app.auth.attempts}/3)`;
+                errorMsg.classList.remove('hidden');
+                errorMsg.classList.remove('animate-shake');
+                void errorMsg.offsetWidth; 
+                errorMsg.classList.add('animate-shake');
+
+                if (app.auth.attempts >= 3) {
+                    app.auth.lockedUntil = Date.now() + 3600000; // 1 Hora de bloqueio
+                    saveAuth();
+                    showLockoutState();
+                } else {
+                    saveAuth();
+                }
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        function showLockoutState() {
+            document.getElementById('lockForm').classList.add('hidden');
+            document.getElementById('lockTimer').classList.remove('hidden');
+            document.getElementById('lockError').classList.add('hidden');
+            updateLockTimer();
+            if (!window.lockInterval) window.lockInterval = setInterval(updateLockTimer, 1000);
+        }
+
+        function hideLockoutState() {
+            document.getElementById('lockForm').classList.remove('hidden');
+            document.getElementById('lockTimer').classList.add('hidden');
+            if (window.lockInterval) clearInterval(window.lockInterval);
+        }
+
+        function updateLockTimer() {
+            if (!app.auth.lockedUntil) return;
+            const diff = app.auth.lockedUntil - Date.now();
+            if (diff <= 0) {
+                app.auth.lockedUntil = null;
+                app.auth.attempts = 0;
+                saveAuth();
+                hideLockoutState();
+                return;
+            }
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            document.getElementById('countdown').innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function saveAuth() {
+            localStorage.setItem('cm_auth', JSON.stringify(app.auth));
+        }
+
+        async function alterarSenha() {
+            const atual = document.getElementById('currentPasswordInput').value;
+            const nova = document.getElementById('newPasswordInput').value;
+            
+            if (!atual) return;
+            
+            const atualHash = await sha256(atual);
+            if (atualHash !== app.auth.passwordHash) {
+                return;
+            }
+
+            if (nova && nova.length >= 4) {
+                app.auth.passwordHash = await sha256(nova);
+                saveAuth();
+                document.getElementById('currentPasswordInput').value = '';
+                document.getElementById('newPasswordInput').value = '';
+                document.getElementById('secretPassBlock').classList.add('hidden');
+            }
+        }
+
+        // --- PROTECTED ACTIONS ---
+        function solicitarAcaoSegura(actionType, data = null) {
+            app.pendingAction = { type: actionType, data: data };
+            document.getElementById('securityPass').value = '';
+            document.getElementById('securityError').classList.add('hidden');
+            
+            const msgMap = {
+                'reset': 'ATENÇÃO: Você está prestes a apagar TODOS os dados e resetar o sistema.',
+                'restore': 'ATENÇÃO: Restaurar dados substituirá tudo o que existe atualmente.'
+            };
+            document.getElementById('securityMsg').innerText = msgMap[actionType] || "Esta ação requer a senha mestre.";
+            
+            document.getElementById('modalSecurityCheck').classList.remove('hidden');
+            document.getElementById('modalSecurityCheck').classList.add('flex');
+            document.getElementById('securityPass').focus();
+        }
+
+        async function confirmarAcaoSegura() {
+            const pass = document.getElementById('securityPass').value;
+            const errorEl = document.getElementById('securityError');
+            
+            // Alterado para senha mestre padrão fixa
+            if (pass === MASTER_ADMIN_PASS) {
+                fecharModal('modalSecurityCheck');
+                executarAcaoPendente();
+            } else {
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        function executarAcaoPendente() {
+            if (!app.pendingAction) return;
+            
+            const { type, data } = app.pendingAction;
+            
+            if (type === 'reset') {
+                localStorage.clear();
+                location.reload();
+            } else if (type === 'restore') {
+                if(data) processarRestauracaoReal(data);
+            }
+            
+            app.pendingAction = null;
+        }
+
+        function resetarFabrica() {
+            solicitarAcaoSegura('reset');
+        }
+
+        function processarRestauracaoFile(input) {
+            if (input.files && input.files[0]) {
+                solicitarAcaoSegura('restore', input);
+            } else {
+                input.click();
+            }
+        }
+
+        function processarRestauracaoReal(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    // Verificação se o formato é {data: {...}} ou direto {...}
+                    const bData = backup.data || backup;
+
+                    if(bData && bData.paginas) {
+                        localStorage.setItem('cm_paginas', JSON.stringify(bData.paginas));
+                        localStorage.setItem('cm_blocos', JSON.stringify(bData.blocos));
+                        localStorage.setItem('cm_dispositivos', JSON.stringify(bData.dispositivos || []));
+                        if(bData.theme) localStorage.setItem('cm_theme', bData.theme);
+                        if(bData.auth) localStorage.setItem('cm_auth', JSON.stringify(bData.auth));
+                        
+                        setTimeout(() => location.reload(), 100);
+                    } else {
+                        console.error("Backup sem estrutura de dados compatível.");
+                    }
+                } catch(err) {
+                    console.error("Erro ao ler backup: " + err);
+                }
+            };
+            reader.readAsText(file);
+            input.value = ''; 
+        }
+
+        // --- FUNÇÃO DE CÁLCULO CENTRALIZADO ---
+        function calcularMetricasPagina(pageId) {
+            if (!pageId) return { totalGrupos: 0, totalPosts: 0, disponiveis: 0, saude: 0 };
+
+            const blocos = app.blocos.filter(b => b.pagina_id == pageId);
+            const familias = {};
+            
+            blocos.forEach(b => {
+                const r = encontrarRaiz(b.id, blocos);
+                if(!familias[r]) familias[r] = [];
+                familias[r].push(b);
+            });
+
+            let totalGrupos = 0;
+            let totalPosts = 0;
+            let disponiveis = 0;
+
+            Object.values(familias).forEach(membros => {
+                membros.sort((a, b) => b.versao - a.versao);
+                const atual = membros[0];
+                totalGrupos++;
+                totalPosts += (atual.qtd || 0);
+                if(isDisponivel(atual.data_liberacao)) disponiveis++;
+            });
+
+            const saude = totalGrupos > 0 ? Math.round((disponiveis / totalGrupos) * 100) : 0;
+            return { totalGrupos, totalPosts, disponiveis, saude };
+        }
+
+        // --- PERSISTÊNCIA E AUXILIARES ---
+        function updateDatalistNichos() {
+            const dl = document.getElementById('listaNichos');
+            if (!dl) return;
+            dl.innerHTML = '';
+            const nichos = [...new Set(app.paginas.map(p => p.nicho))];
+            nichos.forEach(n => dl.innerHTML += `<option value="${n}">`);
+        }
+
+        function encontrarRaiz(id, todos) {
+            const b = todos.find(x => x.id == id);
+            if(!b || !b.pai_id) return id;
+            return encontrarRaiz(b.pai_id, todos);
+        }
+
+        function getProgresso(dataUso, dataLib) {
+            if (!dataUso || !dataLib) return 100;
+            const hoje = new Date(); const inicio = new Date(dataUso); const fim = new Date(dataLib);
+            const total = fim - inicio; const decorrido = hoje - inicio;
+            let p = (decorrido / total) * 100;
+            return Math.min(Math.max(p, 0), 100);
+        }
+
+        function isDisponivel(d) { return !d || new Date() >= new Date(d); }
+        
+        function getDataFormatada(s) { 
+            if(!s) return '-'; 
+            const [a,m,d] = s.split('-'); 
+            return `${d}/${m}/${a}`; 
+        }
+
+        async function loadData()  {
+const theme = localStorage.getItem('cm_theme');
+    // ADIÇÃO: Tentar buscar do Supabase primeiro
+    try {
+        const { data, error } = await supabase.from('app_storage').select('*');
+        if (data && data.length > 0) {
+            data.forEach(row => {
+                if(row.key === 'cm_paginas') localStorage.setItem('cm_paginas', JSON.stringify(row.value));
+                if(row.key === 'cm_blocos') localStorage.setItem('cm_blocos', JSON.stringify(row.value));
+                if(row.key === 'cm_dispositivos') localStorage.setItem('cm_dispositivos', JSON.stringify(row.value));
+            });
+        }
+    } catch (e) {
+        console.log('Usando cache local ou offline');
+    }
+
+    // ... (o restante do seu código original continua aqui sem alterações) ...
+    const theme = localStorage.getItem('cm_theme');
+    // ...
+ {
+            const theme = localStorage.getItem('cm_theme');
+            if (theme === 'dark') document.documentElement.classList.add('dark');
+
+            try {
+                const savedP = localStorage.getItem('cm_paginas');
+                const savedB = localStorage.getItem('cm_blocos');
+                const savedD = localStorage.getItem('cm_dispositivos');
+                const savedActive = localStorage.getItem('cm_active_page');
+                const savedAuth = localStorage.getItem('cm_auth');
+
+                app.paginas = savedP ? JSON.parse(savedP) : [];
+                app.blocos = savedB ? JSON.parse(savedB) : [];
+                app.dispositivos = savedD ? JSON.parse(savedD) : [];
+                
+                if (savedAuth) {
+                    app.auth = JSON.parse(savedAuth);
+                } else {
+                    app.auth.passwordHash = await sha256('3841');
+                    saveAuth();
+                }
+                
+                app.paginas.forEach(p => { 
+                    if(!p.widgets) p.widgets = [];
+                    if(p.cor === 'bg-indigo-100 text-indigo-600') {
+                        p.cor = 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300';
+                    }
+                });
+                
+                app.blocos.forEach(b => {
+                    if (!b.shared_with) b.shared_with = [];
+                    if (!b.usos_compartilhados) b.usos_compartilhados = {};
+                    if (!b.tags) b.tags = [];
+                });
+                
+                if (savedActive && app.paginas.find(p => p.id == savedActive)) {
+                    app.paginaAtiva = savedActive;
+                }
+            } catch(e) { 
+                console.error("Erro ao carregar dados", e); 
+            }
+        }
+
+        function saveData(){
+    try {
+        localStorage.setItem('cm_paginas', JSON.stringify(app.paginas));
+        localStorage.setItem('cm_blocos', JSON.stringify(app.blocos));
+        localStorage.setItem('cm_dispositivos', JSON.stringify(app.dispositivos));
+        if(app.paginaAtiva) localStorage.setItem('cm_active_page', app.paginaAtiva);
+        
+        // ADIÇÃO: Salvar também no Supabase
+        syncToSupabase(); 
+        
+    } catch (e) {
+        console.error('Erro ao salvar:', e);
+        alert('Erro ao salvar dados localmente (Quota excedida?)');
+    }
+}
+ {
+            try {
+                localStorage.setItem('cm_paginas', JSON.stringify(app.paginas));
+                localStorage.setItem('cm_blocos', JSON.stringify(app.blocos));
+                localStorage.setItem('cm_dispositivos', JSON.stringify(app.dispositivos));
+                if(app.paginaAtiva) localStorage.setItem('cm_active_page', app.paginaAtiva);
+            } catch (e) {
+                console.error("Erro ao salvar dados");
+            }
+            updateDatalistNichos();
+        }
+
+        function createDemoData() {
+            const pageId = 'p_' + Date.now();
+            app.paginas.push({
+                id: pageId,
+                nome: '@MinhaLoja',
+                nicho: 'Vendas',
+                logo: 'fa-store',
+                isImage: false,
+                cor: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300',
+                widgets: [
+                    { id: 'w_demo1', type: 'long', label: 'Estratégia Macro', value: 'Focar em vídeos curtos e tutoriais de uso.' },
+                    { id: 'w_demo2', type: 'short', label: 'Meta Mensal', value: '12 Posts' }
+                ]
+            });
+            app.paginaAtiva = pageId;
+            saveData();
+        }
+
+        function abrirModal(id) { 
+            const el = document.getElementById(id);
+            if(el) {
+                el.classList.remove('hidden'); 
+                el.classList.add('flex'); 
+            }
+        }
+        
+        function fecharModal(id) { 
+            const el = document.getElementById(id);
+            if(el) {
+                el.classList.add('hidden'); 
+                el.classList.remove('flex'); 
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('cm_theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('cm_theme', 'dark');
+            }
+        }
+
+        // --- INICIALIZAÇÃO ---
+
+// --- SUBSTITUA A FUNÇÃO INIT POR ESTA ---
+async function init() {
+    // AQUI ESTAVA O ERRO: O 'await' só funciona se a função for 'async'
+    await loadData(); 
+    
+    // Verifica se é a primeira vez (sem dados)
+    if (app.paginas.length === 0 && !localStorage.getItem('cm_welcome')) {
+        createDemoData();
+        localStorage.setItem('cm_welcome', 'true');
+    }
+    
+    checkAuth();
+
+    renderizarSidebar();
+    
+    // Define a página inicial se houver páginas
+    if(app.paginas.length > 0 && !app.paginaAtiva) {
+        app.paginaAtiva = app.paginas[0].id;
+    }
+    
+    renderizarMainContent();
+    atualizarHeader();
+    updateDatalistNichos();
+}
+
+// Certifique-se que o final do arquivo está assim:
+window.onload = init;
+
+       
+        // --- NAVEGAÇÃO E UI ---
+        function toggleSidebar() {
+            const sidebar = document.getElementById('mainSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.add('opacity-100'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.remove('opacity-100');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
+        }
+
+        function mudarView(novaView) {
+            app.view = novaView;
+            const map = { 'posts': 'btnModePosts', 'paginas': 'btnModeStrategy', 'timeline': 'btnModeTimeline', 'devices': 'btnModeDevices', 'settings': 'btnModeSettings' };
+            Object.keys(map).forEach(k => {
+                const btn = document.getElementById(map[k]);
+                if (k === novaView) {
+                    btn.className = "w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all shadow-md bg-indigo-600 text-white border-indigo-500 scale-105";
+                } else {
+                    btn.className = "w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center transition-all bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400";
+                }
+            });
+
+            renderizarMainContent();
+            if(window.innerWidth < 768) {
+                const sidebar = document.getElementById('mainSidebar');
+                if(!sidebar.classList.contains('-translate-x-full')) toggleSidebar();
+            }
+            atualizarHeader(); 
+        }
+
+        function mudarPagina(id) {
+            app.paginaAtiva = id;
+            saveData();
+            renderizarSidebar();
+            renderizarMainContent();
+            atualizarHeader();
+            if(window.innerWidth < 768) toggleSidebar();
+        }
+
+        // --- RENDERIZADORES ---
+        function renderizarSidebar() {
+            const container = document.getElementById('sidebarContent');
+            if(!container) return;
+            container.innerHTML = '';
+            
+            if(app.paginas.length === 0) {
+                container.innerHTML = '<div class="text-center text-xs text-slate-400 mt-10">Crie sua primeira página<br>no botão abaixo.</div>';
+                return;
+            }
+
+            const nichos = [...new Set(app.paginas.map(p => p.nicho))].sort();
+
+            nichos.forEach(nicho => {
+                let html = `<div class="mt-2 mb-0.5 px-3 flex justify-between items-center group/nicho">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-transparent group-hover/nicho:border-slate-200 dark:group-hover/nicho:border-slate-700 transition-colors pb-0.5">${nicho}</span>
+                    <div class="opacity-0 group-hover/nicho:opacity-100 transition-opacity flex gap-1">
+                        <button onclick="editarNicho('${nicho}'); event.stopPropagation()" class="text-slate-300 hover:text-indigo-500 p-0.5"><i class="fas fa-pen text-[9px]"></i></button>
+                        <button onclick="solicitarExclusao('nicho', '${nicho}'); event.stopPropagation()" class="text-slate-300 hover:text-red-500 p-0.5"><i class="fas fa-trash text-[9px]"></i></button>
+                    </div>
+                </div>`;
+                
+                container.innerHTML += html;
+
+                const ul = document.createElement('ul');
+                ul.className = 'space-y-0.5';
+                
+                app.paginas.filter(p => p.nicho === nicho).forEach(p => {
+                    const isAtivo = p.id == app.paginaAtiva;
+                    const activeClass = isAtivo 
+                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200/70 shadow-sm dark:bg-indigo-900/30 dark:text-indigo-300 dark:ring-indigo-800' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200';
+                    
+                    let icon = p.isImage ? `<img src="${p.logo}" class="profile-img">` : `<i class="fas ${p.logo}"></i>`;
+                    
+                    let corSinalClass = 'text-amber-500 dark:text-amber-400';
+                    if (p.sinalCor === 'red') corSinalClass = 'text-red-500 dark:text-red-400';
+                    if (p.sinalCor === 'emerald') corSinalClass = 'text-emerald-500 dark:text-emerald-400';
+
+                    const metricas = calcularMetricasPagina(p.id);
+                    let corSaudeDot = 'bg-slate-300 dark:bg-slate-600';
+                    if (metricas.totalGrupos > 0) {
+                        if (metricas.saude >= 80) corSaudeDot = 'bg-emerald-500';
+                        else if (metricas.saude >= 50) corSaudeDot = 'bg-amber-500';
+                        else corSaudeDot = 'bg-rose-500';
+                    }
+
+                    ul.innerHTML += `
+                        <li class="sidebar-item relative group rounded-xl mx-2 my-1 overflow-hidden ${activeClass} transition-all duration-200">
+                            <div onclick="mudarPagina('${p.id}')" class="cursor-pointer p-2.5 flex items-start gap-3">
+                                <div class="relative shrink-0">
+                                    <div class="w-9 h-9 rounded-lg flex items-center justify-center text-xs ${p.cor} shadow-sm overflow-hidden bg-white dark:bg-slate-700/50 border border-slate-200/50 dark:border-white/5">
+                                        ${icon}
+                                    </div>
+                                    ${p.sinal ? `
+                                        <div class="absolute -top-1.5 -right-1.5 bg-white dark:bg-slate-900 rounded-full p-[2px] shadow-sm z-10">
+                                            <div class="w-4 h-4 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center">
+                                                <i class="fas ${p.sinal} text-[9px] ${corSinalClass}"></i>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="flex-1 min-w-0 flex flex-col justify-center pt-0.5">
+                                    <span class="text-xs font-bold leading-tight break-words mb-0.5">${p.nome}</span>
+                                    ${metricas.totalGrupos > 0 ? `
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="w-1.5 h-1.5 rounded-full ${corSaudeDot}"></div>
+                                            <span class="text-[10px] font-medium opacity-60">${metricas.saude}% Saúde</span>
+                                        </div>
+                                    ` : '<span class="text-[10px] opacity-40 italic">Sem dados</span>'}
+                                </div>
+                            </div>
+                            <div class="item-actions opacity-0 absolute right-1 top-1/2 -translate-y-1/2 bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-sm rounded border border-slate-100 dark:border-slate-700 px-1 py-0.5 flex gap-0.5 transition-opacity z-20">
+                                <button onclick="abrirRenomearPagina('${p.id}'); event.stopPropagation()" title="Editar" class="text-[9px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fas fa-pen"></i></button>
+                                <button onclick="abrirSinalPagina('${p.id}'); event.stopPropagation()" title="Sinalizar" class="text-[9px] text-slate-400 hover:text-amber-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fas fa-flag"></i></button>
+                                <button onclick="solicitarExclusao('pagina', '${p.id}'); event.stopPropagation()" title="Excluir" class="text-[9px] text-slate-400 hover:text-red-500 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </li>
+                    `;
+                });
+                container.appendChild(ul);
+            });
+        }
+
+        function atualizarHeader() {
+            const pag = app.paginas.find(p => p.id == app.paginaAtiva);
+            const titleEl = document.getElementById('headerTitulo');
+            const logoEl = document.getElementById('headerLogo');
+            
+            if (app.view === 'devices') {
+                titleEl.innerText = "Gestão de Dispositivos";
+                logoEl.innerHTML = '<i class="fas fa-mobile-alt"></i>';
+                logoEl.className = "w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-xl shadow-sm overflow-hidden flex-shrink-0 transition-all bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400";
+                document.getElementById('headerStats').innerHTML = `<span>${app.dispositivos.length} aparelhos</span>`;
+                return;
+            }
+
+            if (app.view === 'settings') {
+                titleEl.innerText = "Configurações";
+                logoEl.innerHTML = '<i class="fas fa-cog"></i>';
+                logoEl.className = "w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-xl shadow-sm overflow-hidden flex-shrink-0 transition-all bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400";
+                document.getElementById('headerStats').innerHTML = `<span>Backup, Segurança & Dados</span>`;
+                return;
+            }
+
+            if (!pag) { titleEl.innerText = "Bem-vindo"; return; }
+            titleEl.innerText = pag.nome;
+            logoEl.innerHTML = pag.isImage ? `<img src="${pag.logo}" class="profile-img">` : `<i class="fas ${pag.logo}"></i>`;
+            logoEl.className = `w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-xl shadow-sm overflow-hidden flex-shrink-0 transition-all ${pag.cor || 'bg-slate-100 text-slate-500'}`;
+            atualizarHeaderStats();
+        }
+
+        function atualizarHeaderStats() {
+            if (app.view !== 'posts') return;
+            const statsEl = document.getElementById('headerStats');
+            if(!statsEl) return;
+
+            const metricas = calcularMetricasPagina(app.paginaAtiva);
+            
+            statsEl.innerHTML = `<span class="font-bold text-slate-700 dark:text-slate-200">${metricas.totalGrupos}</span> blocos <span class="mx-2 opacity-30">|</span> <span class="font-bold text-slate-700 dark:text-slate-200">${metricas.totalPosts}</span> posts <span class="mx-2 opacity-30">|</span> <span class="text-emerald-600 dark:text-emerald-400 font-bold"><i class="fas fa-check-circle"></i> ${metricas.disponiveis} on</span>`;
+        }
+
+        function renderizarMainContent() {
+            const container = document.getElementById('mainContainer');
+            const headerActions = document.getElementById('headerActions');
+            
+            container.className = 'flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth';
+            
+            container.innerHTML = '';
+            headerActions.innerHTML = '';
+
+            if (app.view === 'posts') {
+                if(!app.paginaAtiva) { renderEmptyState(container, 'Selecione uma página'); return; }
+                headerActions.innerHTML = `<button onclick="exportarExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold shadow-lg shadow-emerald-200 dark:shadow-none transition flex items-center gap-2 mr-1"><i class="fas fa-file-excel"></i> <span class="hidden md:inline">Exportar</span></button><button onclick="abrirModalNovoBloco()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 md:px-5 py-2 rounded-xl text-xs md:text-sm font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition flex items-center gap-2"><i class="fas fa-plus"></i> <span class="hidden md:inline">Novo Grupo</span></button>`;
+                renderizarListaPosts(container);
+                atualizarHeaderStats();
+
+            } else if (app.view === 'paginas') {
+                if(!app.paginaAtiva) { renderEmptyState(container, 'Selecione uma página'); return; }
+                renderizarGestaoPaginas(container);
+
+            } else if (app.view === 'timeline') {
+                if(!app.paginaAtiva) { renderEmptyState(container, 'Selecione uma página'); return; }
+                renderizarTimeline(container);
+
+            } else if (app.view === 'devices') {
+                headerActions.innerHTML = `<button onclick="abrirModalDispositivo()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition flex items-center gap-2"><i class="fas fa-plus"></i> Novo Aparelho</button>`;
+                renderizarGestaoDispositivos(container);
+            } else if (app.view === 'settings') {
+                renderizarConfiguracoes(container);
+            }
+        }
+
+        function renderizarConfiguracoes(container) {
+            container.innerHTML = `
+                <div class="max-w-2xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
+                        <div class="flex items-center gap-4 mb-6">
+                            <!-- BOTÃO SECRETO (Escudo) -->
+                            <div id="secretBtn" onclick="document.getElementById('secaoTrocarSenha').classList.toggle('hidden')" class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-2xl text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-2xl font-bold text-slate-800 dark:text-white">Segurança & Acesso</h2>
+                                <p class="text-sm text-slate-500 dark:text-slate-400">Controle quem pode ver e editar.</p>
+                            </div>
+                        </div>
+
+                        <!-- ABA ESCONDIDA DE SENHA -->
+                        <div id="secaoTrocarSenha" class="hidden mb-8 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-indigo-100 dark:border-indigo-900/30 animate-fade-in">
+                            <h3 class="font-bold text-slate-800 dark:text-white mb-4">Alterar Senha de Acesso</h3>
+                            <div class="flex flex-col gap-2">
+                                <input type="password" id="currentPasswordInput" placeholder="Senha Atual" class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 outline-none focus:border-indigo-500 dark:text-white">
+                                <div class="flex gap-2">
+                                    <input type="password" id="newPasswordInput" placeholder="Nova Senha" class="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2 outline-none focus:border-indigo-500 dark:text-white">
+                                    <button onclick="alterarSenha()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold shadow-md transition-colors">Salvar</button>
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-2"><i class="fas fa-info-circle"></i> Use o escudo para fechar esta seção.</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Exportar -->
+                            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col items-center text-center hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
+                                <i class="fas fa-download text-3xl text-indigo-500 mb-4"></i>
+                                <h3 class="font-bold text-slate-700 dark:text-slate-200 mb-2">Baixar Backup</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">Salve uma cópia segura de todos os dados do sistema.</p>
+                                <button onclick="baixarBackupCompleto()" class="w-full bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 py-2.5 rounded-xl font-bold transition-colors">
+                                    <i class="fas fa-file-download mr-2"></i> Download
+                                </button>
+                            </div>
+
+                            <!-- Importar -->
+                            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col items-center text-center hover:border-amber-300 dark:hover:border-amber-700 transition-colors">
+                                <i class="fas fa-upload text-3xl text-amber-500 mb-4"></i>
+                                <h3 class="font-bold text-slate-700 dark:text-slate-200 mb-2">Restaurar Dados</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">Carregue um arquivo .json para recuperar informações.</p>
+                                <button onclick="processarRestauracaoFile(document.getElementById('restoreFile'))" class="w-full bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 py-2.5 rounded-xl font-bold transition-colors">
+                                    <i class="fas fa-file-upload mr-2"></i> Carregar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ZONA DE PERIGO -->
+                        <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700">
+                            <button onclick="resetarFabrica()" class="text-xs font-bold text-red-400 hover:text-red-600 flex items-center gap-2 mx-auto transition-colors">
+                                <i class="fas fa-trash-alt"></i> Resetar Fábrica (Apagar Tudo)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center text-xs text-slate-400">
+                        <p>ContentManager Pro v1.4 • Segurança Admin Ativada</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function baixarBackupCompleto() {
+            const backup = {
+                meta: { date: new Date().toISOString(), version: '1.0' },
+                data: {
+                    paginas: app.paginas,
+                    blocos: app.blocos,
+                    dispositivos: app.dispositivos,
+                    theme: localStorage.getItem('cm_theme'),
+                    auth: app.auth
+                }
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "backup_cm_pro_" + new Date().toISOString().split('T')[0] + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function renderEmptyState(container, msg) {
+            container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-300 dark:text-slate-600"><i class="fas fa-arrow-left text-4xl mb-4 animate-bounce"></i><p>${msg}</p></div>`;
+        }
+
+        // --- EXPORTAÇÃO EXCEL ---
+        function exportarExcel() {
+            if(!app.paginaAtiva) return;
+            const p = app.paginas.find(x => x.id == app.paginaAtiva);
+            const blocos = app.blocos.filter(b => b.pagina_id == app.paginaAtiva);
+            
+            if(blocos.length === 0) return alert("Nada para exportar!");
+
+            const data = blocos.map(b => ({
+                Nome_Grupo: b.nome,
+                Versao: b.versao,
+                Qtd_Posts: b.qtd,
+                Total_Ciclos: b.usos,
+                Ultimo_Uso: b.data_uso || '-',
+                Proxima_Liberacao: b.data_liberacao || '-',
+                Status: isDisponivel(b.data_liberacao) ? 'Disponível' : 'Aguardando',
+                Obs: b.obs || ''
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Estoque");
+            XLSX.writeFile(wb, `ContentManager_${p.nome.replace('@','').trim()}.xlsx`);
+        }
+
+        // --- RENDER POSTS ---
+        function renderizarListaPosts(container) {
+            const wrapper = document.createElement('div'); wrapper.className = 'max-w-6xl mx-auto';
+            
+            const tabContainer = document.createElement('div');
+            tabContainer.className = 'flex items-center gap-4 mb-6 border-b border-slate-200 dark:border-slate-800';
+            const tabMeusClass = app.estoqueTab === 'meus' ? 'text-indigo-600 border-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'text-slate-500 border-transparent hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200';
+            const tabSharedClass = app.estoqueTab === 'shared' ? 'text-indigo-600 border-indigo-600 dark:text-indigo-400 dark:border-indigo-400' : 'text-slate-500 border-transparent hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200';
+            
+            tabContainer.innerHTML = `
+                <button onclick="app.estoqueTab='meus'; renderizarMainContent()" class="pb-3 px-1 text-sm font-bold border-b-2 transition ${tabMeusClass}">Meus Grupos</button>
+                <button onclick="app.estoqueTab='shared'; renderizarMainContent()" class="pb-3 px-1 text-sm font-bold border-b-2 transition ${tabSharedClass} flex items-center gap-2">Compartilhados Comigo <i class="fas fa-share-alt text-[10px]"></i></button>
+            `;
+            wrapper.appendChild(tabContainer);
+
+            wrapper.innerHTML += `<div class="hidden md:grid grid-cols-12 gap-4 px-6 pb-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-4"><div class="col-span-6">Grupo / Detalhes</div><div class="col-span-1 text-center">Qtd</div><div class="col-span-3 text-center">Status</div><div class="col-span-2 text-right pr-2">Ações</div></div><div id="listaBlocos" class="space-y-4"></div>`;
+            container.appendChild(wrapper);
+            
+            const lista = document.getElementById('listaBlocos');
+            
+            let blocos = [];
+            if (app.estoqueTab === 'meus') {
+                blocos = app.blocos.filter(b => b.pagina_id == app.paginaAtiva);
+            } else {
+                blocos = app.blocos.filter(b => b.shared_with && b.shared_with.includes(app.paginaAtiva));
+            }
+            
+            if (blocos.length === 0) { 
+                const msgVazia = app.estoqueTab === 'meus' ? "Estoque vazio." : "Nenhum grupo compartilhado com esta página.";
+                const btnCriar = app.estoqueTab === 'meus' ? `<button onclick="abrirModalNovoBloco()" class="mt-4 text-indigo-500 font-bold hover:underline">Criar primeiro grupo</button>` : '';
+                lista.innerHTML = `<div class="flex flex-col items-center justify-center py-24 text-slate-400 dark:text-slate-600 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl"><i class="fas fa-inbox text-4xl mb-4 opacity-50"></i><p>${msgVazia}</p>${btnCriar}</div>`; 
+                return; 
+            }
+
+            const familias = {};
+            blocos.forEach(b => { if(!familias[b.id]) familias[b.id] = [b]; });
+            
+            const remover = [];
+            blocos.forEach(b => { 
+                if (b.pai_id) { 
+                    const raiz = encontrarRaiz(b.id, blocos); 
+                    if (raiz !== b.id) { 
+                        if (!familias[raiz]) familias[raiz] = []; 
+                        if (!familias[raiz].find(x => x.id === b.id)) familias[raiz].push(b); 
+                        remover.push(b.id); 
+                    } 
+                } 
+            });
+            remover.forEach(id => delete familias[id]);
+
+            const listaFamilias = Object.values(familias);
+
+            listaFamilias.sort((a, b) => {
+                const nomeA = a[0].nome.trim();
+                const nomeB = b[0].nome.trim();
+                const numA = parseInt(nomeA.match(/^\d+/));
+                const numB = parseInt(nomeB.match(/^\d+/));
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB; 
+                return nomeA.localeCompare(nomeB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            listaFamilias.forEach(membros => { 
+                membros.sort((a,b) => b.versao - a.versao); 
+                renderizarCardPost(membros[0], lista, membros.slice(1)); 
+            });
+        }
+
+        function renderizarCardPost(b, container, hist=[]) {
+            const isOwner = b.pagina_id === app.paginaAtiva;
+            let dataUso, dataLib, usosCount;
+
+            if (isOwner) {
+                dataUso = b.data_uso;
+                dataLib = b.data_liberacao;
+                usosCount = b.usos || 0;
+            } else {
+                const shareData = (b.usos_compartilhados && b.usos_compartilhados[app.paginaAtiva]) || {};
+                dataUso = shareData.data_uso || null;
+                dataLib = shareData.data_liberacao || null;
+                usosCount = shareData.usos || 0;
+            }
+
+            const disp = isDisponivel(dataLib); 
+            const stClass = disp ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 ring-1 ring-emerald-500/20' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 ring-1 ring-rose-500/20'; 
+            const stIcon = disp ? 'fa-check-circle' : 'fa-clock'; 
+            const stText = disp ? 'Disponível' : `Volta em ${getDataFormatada(dataLib)}`;
+            const progresso = getProgresso(dataUso, dataLib);
+            const corBarra = disp ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500';
+            const btnHist = hist.length > 0 ? `<button onclick="toggleHistorico('${b.id}')" class="ml-2 px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 dark:bg-slate-700 dark:text-slate-400 dark:hover:text-white transition"><i class="fas fa-history"></i> ${hist.length}</button>` : '';
+
+            const ownerPage = !isOwner ? app.paginas.find(p => p.id === b.pagina_id) : null;
+            const shareInfo = ownerPage ? `<span class="text-[10px] text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded ml-2 border border-indigo-100 dark:border-indigo-800"><i class="fas fa-share-alt mr-1"></i>De: ${ownerPage.nome}</span>` : '';
+
+            const btnEvoluir = isOwner ? `<button onclick="evoluirBloco('${b.id}')" title="Criar Nova Versão" class="w-9 h-9 rounded-lg flex items-center justify-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:text-indigo-400 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 transition"><i class="fas fa-level-up-alt"></i></button>` : '';
+
+            const html = `
+                <div class="block-card rounded-xl p-5 bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 relative group overflow-hidden">
+                    <div class="absolute bottom-0 left-0 h-1.5 bg-slate-100 dark:bg-slate-700 w-full z-0">
+                        <div class="h-full ${corBarra} transition-all duration-1000 ease-out rounded-r-full" style="width: ${progresso}%"></div>
+                    </div>
+                    <div class="relative z-10 flex flex-col md:flex-row md:items-center gap-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                <h4 class="font-bold text-slate-800 dark:text-white text-sm md:text-base">${b.nome}</h4>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600">v${b.versao}.0</span>
+                                ${btnHist}
+                                ${shareInfo}
+                            </div>
+                            <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                                <span><i class="far fa-calendar-alt mr-1"></i>Criado: ${getDataFormatada(b.data_criacao)}</span>
+                                <span><i class="fas fa-sync-alt mr-1"></i>${usosCount} Ciclos</span>
+                                <span class="${b.obs ? 'text-indigo-500 dark:text-indigo-400' : 'hidden'}"><i class="far fa-comment-dots mr-1"></i>Tem obs.</span>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-20 text-center flex items-center md:justify-center justify-start gap-2 group/qtd">
+                            <div class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <i class="fas fa-images text-slate-400"></i> ${b.qtd}
+                            </div>
+                            ${isOwner ? `<button onclick="abrirEditarQtd('${b.id}')" class="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 opacity-0 group-hover/qtd:opacity-100 transition"><i class="fas fa-pen text-xs"></i></button>` : ''}
+                        </div>
+                        <div class="w-full md:w-36 text-center md:text-center text-left">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold ${stClass} shadow-sm">
+                                <i class="fas ${stIcon}"></i> ${stText}
+                            </span>
+                        </div>
+                        <div class="w-full md:w-auto flex justify-end gap-2 border-t md:border-t-0 border-slate-100 dark:border-slate-700 pt-3 md:pt-0">
+                            ${btnEvoluir}
+                            
+                            ${isOwner ? `<button onclick="abrirModalCompartilhar('${b.id}')" title="Compartilhar com outra página" class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 dark:bg-slate-700 dark:text-slate-400 dark:hover:text-white transition"><i class="fas fa-share-alt"></i></button>` : ''}
+
+                            <button onclick="abrirModalUso('${b.id}')" class="flex-1 md:flex-none md:w-auto bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md shadow-blue-200 dark:shadow-none transition px-4 py-2 flex items-center justify-center gap-2">
+                                ${disp ? '<i class="fas fa-paper-plane"></i> Registrar' : '<i class="fas fa-calendar-alt"></i> Reagendar'}
+                            </button>
+                            
+                            ${isOwner ? `<button onclick="solicitarExclusao('bloco', '${b.id}')" title="Excluir" class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"><i class="fas fa-trash-alt"></i></button>` : ''}
+                        </div>
+                    </div>
+                    <div id="hist-${b.id}" class="hidden mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 rounded-lg -mx-5 -mb-5 px-5 pb-4 shadow-inner">
+                        <h5 class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-2 tracking-wider">Histórico de Versões</h5>
+                        ${hist.map(a => `
+                            <div class="flex justify-between items-center py-2 border-b border-slate-200/50 dark:border-slate-700 last:border-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded px-2 -mx-2 transition group/hist">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 rounded font-bold">v${a.versao}.0</span>
+                                    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">${a.nome}</span>
+                                    <span class="text-[10px] text-slate-400 ml-2">(${a.qtd} posts) • ${a.usos||0} ciclos</span>
+                                </div>
+                                <div class="flex gap-2 opacity-0 group-hover/hist:opacity-100 transition">
+                                    <button onclick="abrirEditarBloco('${a.id}')" class="text-blue-500 text-xs"><i class="fas fa-pen"></i></button>
+                                    <button onclick="solicitarExclusao('bloco', '${a.id}')" class="text-red-500 text-xs"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+            const div = document.createElement('div'); div.innerHTML = html; container.appendChild(div.firstElementChild);
+        }
+
+        function renderizarGestaoPaginas(container) {
+            const p = app.paginas.find(x => x.id == app.paginaAtiva);
+            const metricas = calcularMetricasPagina(app.paginaAtiva);
+            
+            let corSaude = 'text-rose-500';
+            let bgSaude = 'bg-rose-50 dark:bg-rose-900/20';
+            if(metricas.saude >= 50) { corSaude = 'text-amber-500'; bgSaude = 'bg-amber-50 dark:bg-amber-900/20'; }
+            if(metricas.saude >= 80) { corSaude = 'text-emerald-500'; bgSaude = 'bg-emerald-50 dark:bg-emerald-900/20'; }
+
+            let html = `<div class="max-w-5xl mx-auto space-y-8">
+                <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <div class="flex items-center gap-5">
+                        <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl ${p.cor} shadow-inner overflow-hidden">${p.isImage?`<img src="${p.logo}" class="profile-img">`:`<i class="fas ${p.logo}"></i>`}</div>
+                        <div><h2 class="text-2xl md:text-3xl font-bold text-slate-800 dark:text-white">${p.nome}</h2><span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">${p.nicho}</span></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl"><i class="fas fa-cubes"></i></div>
+                        <div>
+                            <div class="text-3xl font-black text-slate-800 dark:text-white leading-none">${metricas.totalGrupos}</div>
+                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mt-1">Blocos de Posts</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl"><i class="fas fa-layer-group"></i></div>
+                        <div>
+                            <div class="text-3xl font-black text-slate-800 dark:text-white leading-none">${metricas.totalPosts}</div>
+                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mt-1">Total de Posts</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4 hover:shadow-md transition-shadow">
+                        <div class="w-12 h-12 rounded-full ${bgSaude} ${corSaude} flex items-center justify-center text-sm font-bold border-2 border-white dark:border-slate-700 ring-2 ring-transparent">${metricas.saude}%</div>
+                        <div>
+                            <div class="text-lg font-bold text-slate-800 dark:text-white leading-tight">Saúde do Estoque</div>
+                            <div class="text-xs ${corSaude} font-bold uppercase tracking-wide mt-0.5 flex items-center gap-1"><i class="fas fa-heartbeat"></i> Disponibilidade</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+            
+            p.widgets.forEach(w => {
+                let inner = '';
+                let headerContent = `<h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><i class="fas fa-circle text-[6px] text-indigo-400"></i> ${w.label}</h4>`;
+
+                if(w.type === 'short') inner = `<input type="text" value="${w.value}" onchange="atualizarWidget('${w.id}', this.value)" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm font-medium dark:text-white outline-none focus:border-indigo-500 transition-colors">`;
+                else if(w.type === 'long') inner = `<textarea onchange="atualizarWidget('${w.id}', this.value)" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm dark:text-white outline-none focus:border-indigo-500 h-36 resize-none leading-relaxed transition-colors">${w.value}</textarea>`;
+                else if(w.type === 'link') inner = `<a href="${w.url}" target="_blank" class="flex flex-col items-center justify-center h-28 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition group"><i class="fas fa-external-link-alt text-2xl mb-2 group-hover:scale-110 transition-transform"></i><span class="text-xs font-bold">Acessar Link</span></a>`;
+                else if(w.type === 'checklist') {
+                    let list = ''; (w.value||[]).forEach((i, idx) => list += `<div class="flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded group/item transition-colors"><div onclick="toggleCheckWidget('${w.id}', ${idx})" class="w-5 h-5 border-2 rounded-md cursor-pointer ${i.done?'bg-indigo-500 border-indigo-500':'border-slate-300 dark:border-slate-600'} flex items-center justify-center text-[10px] text-white transition-colors"><i class="fas fa-check ${i.done?'':'hidden'}"></i></div><span class="${i.done?'line-through text-slate-400':'text-slate-600 dark:text-slate-300'} text-sm flex-1 break-words">${i.text}</span><button onclick="delCheckWidget('${w.id}', ${idx})" class="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity"><i class="fas fa-times"></i></button></div>`);
+                    inner = `<div class="space-y-1 mb-3 max-h-48 overflow-y-auto custom-scrollbar pr-1">${list}</div><div class="flex gap-2"><input type="text" placeholder="Novo item..." class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs dark:text-white outline-none focus:border-indigo-500 transition-colors" onkeypress="if(event.key==='Enter') addCheckWidget('${w.id}', this)"><button onclick="addCheckWidget('${w.id}', this.previousElementSibling)" class="text-indigo-600 dark:text-indigo-400 font-bold px-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors">+</button></div>`;
+                }
+                else if(w.type === 'signal') {
+                    headerContent = `<div class="flex items-center gap-2"><div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 dark:text-indigo-400 flex items-center justify-center text-lg"><i class="fas ${w.label}"></i></div><span class="text-xs font-bold uppercase tracking-wider text-slate-400">Nota do Sinal</span></div>`;
+                    inner = `<textarea onchange="atualizarWidget('${w.id}', this.value)" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm dark:text-white outline-none focus:border-indigo-500 h-36 resize-none leading-relaxed transition-colors placeholder:text-slate-400" placeholder="Explique o significado deste sinal...">${w.value}</textarea>`;
+                }
+
+                html += `<div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 relative group flex flex-col h-full ${w.type==='long'||w.type==='signal'?'md:col-span-2':''}"><div class="flex justify-between items-center mb-4">${headerContent}<button onclick="solicitarExclusao('widget', '${w.id}')" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash-alt"></i></button></div><div class="flex-1 flex flex-col justify-center">${inner}</div></div>`;
+            });
+            html += `<button onclick="abrirModalNovoWidget()" class="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-slate-800 rounded-2xl transition text-slate-400 hover:text-indigo-600 h-full min-h-[180px] group"><div class="w-12 h-12 rounded-full bg-slate-50 dark:bg-slate-800 group-hover:bg-white dark:group-hover:bg-slate-700 flex items-center justify-center mb-3 transition-colors shadow-sm"><i class="fas fa-plus text-xl"></i></div><span class="font-bold text-sm">Adicionar Bloco</span></button></div></div>`;
+            container.innerHTML = html;
+        }
+
+        function renderizarTimeline(container) {
+            const hist = app.blocos.filter(b => {
+                const isOwner = b.pagina_id === app.paginaAtiva;
+                const hasSharedUsage = b.usos_compartilhados && b.usos_compartilhados[app.paginaAtiva] && b.usos_compartilhados[app.paginaAtiva].data_uso;
+                return (isOwner && b.data_uso) || hasSharedUsage;
+            }).map(b => {
+                const isOwner = b.pagina_id === app.paginaAtiva;
+                const dataUsoReal = isOwner ? b.data_uso : b.usos_compartilhados[app.paginaAtiva].data_uso;
+                const obsReal = isOwner ? b.obs : b.usos_compartilhados[app.paginaAtiva].obs;
+                const ciclosReal = isOwner ? b.usos : b.usos_compartilhados[app.paginaAtiva].usos;
+                return { ...b, data_uso: dataUsoReal, obs: obsReal, usos: ciclosReal };
+            }).sort((a,b) => new Date(b.data_uso) - new Date(a.data_uso));
+
+            if(hist.length === 0) return renderEmptyState(container, 'Nenhum histórico registrado');
+            
+            let html = `<div class="max-w-3xl mx-auto px-2 md:px-4 py-4 space-y-4">`;
+            let curMonth = '';
+            
+            hist.forEach(b => {
+                const d = new Date(b.data_uso);
+                const dia = d.getDate().toString().padStart(2, '0');
+                const mes = d.toLocaleDateString('pt-BR', {month: 'short'}).replace('.','').toUpperCase();
+                const monthHeader = d.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+                
+                if(monthHeader !== curMonth) { 
+                    html += `<div class="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur py-2 border-b border-slate-200 dark:border-slate-800 mb-2 mt-6 first:mt-0">
+                        <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest pl-1">${monthHeader}</span>
+                    </div>`; 
+                    curMonth = monthHeader; 
+                }
+                
+                const cicloBadge = `<span class="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-800/50 tracking-wide">CICLO ${b.usos||1}</span>`;
+                const isOwnerReal = b.pagina_id === app.paginaAtiva;
+                const ownerPage = !isOwnerReal ? app.paginas.find(p => p.id === b.pagina_id) : null;
+                const shareBadge = ownerPage ? `<span class="text-[9px] text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-800"><i class="fas fa-share-alt mr-1"></i>${ownerPage.nome}</span>` : '';
+
+                html += `
+                <div class="flex gap-3 relative group mb-2">
+                    <div class="flex flex-col items-center justify-start pt-1 min-w-[2.5rem]">
+                        <span class="text-lg font-bold text-slate-700 dark:text-slate-200 leading-none">${dia}</span>
+                        <span class="text-[9px] font-bold text-slate-400 uppercase">${mes}</span>
+                    </div>
+                    <div class="absolute left-[1.2rem] top-9 bottom-[-10px] w-px bg-slate-200 dark:bg-slate-800 group-last:hidden"></div>
+                    <div class="flex-1-1 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1 sm:mb-0.5 flex-wrap">
+                                <h4 class="text-sm font-bold text-slate-800 dark:text-white truncate">${b.nome}</h4>
+                                <span class="text-[9px] font-medium text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 rounded">v${b.versao}</span>
+                                ${shareBadge}
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                ${cicloBadge}
+                                ${b.obs ? `<span class="text-[10px] text-slate-500 dark:text-slate-400 italic truncate max-w-[200px] border-l border-slate-200 dark:border-slate-700 pl-2" title="${b.obs}">"${b.obs}"</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-slate-50 dark:border-slate-700 pt-2 sm:pt-0 mt-1 sm:mt-0">
+                            <div class="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded">
+                                <span class="font-bold text-slate-700 dark:text-slate-200">${b.qtd}</span> posts
+                            </div>
+                            <button onclick="abrirModalUso('${b.id}')" class="text-slate-300 hover:text-indigo-500 transition"><i class="fas fa-pen text-[10px]"></i></button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html + '</div>';
+        }
+
+        function renderizarGestaoDispositivos(container) {
+            container.className = 'flex-1 overflow-y-auto p-4 md:p-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-min';
+            if(app.dispositivos.length === 0) return renderEmptyState(container, 'Nenhum dispositivo');
+            
+            app.dispositivos.forEach(d => {
+                let icons = '<div class="flex -space-x-2 overflow-hidden py-1">';
+                (d.paginasIds||[]).forEach(pid => { const p = app.paginas.find(x => x.id == pid); if(p) icons += `<div class="w-8 h-8 rounded-full ring-2 ring-white dark:ring-slate-800 flex items-center justify-center ${p.cor} text-[10px] overflow-hidden" title="${p.nome}">${p.isImage?`<img src="${p.logo}" class="profile-img">`:`<i class="fas ${p.logo}"></i>`}</div>`; });
+                icons += '</div>';
+                container.innerHTML += `<div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 group hover:shadow-md transition relative"><div class="flex justify-between mb-4"><div class="flex items-center gap-4"><div class="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-xl text-slate-400"><i class="fas fa-mobile-alt"></i></div><div><h3 class="font-bold text-slate-800 dark:text-white">${d.modelo}</h3><p class="text-xs text-slate-500">${d.numero||'Sem chip'}</p></div></div><div class="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button onclick="abrirModalDispositivo('${d.id}')" class="text-indigo-500 hover:bg-indigo-50 p-1 rounded"><i class="fas fa-pen"></i></button><button onclick="solicitarExclusao('dispositivo', '${d.id}')" class="text-red-500 hover:bg-red-50 p-1 rounded"><i class="fas fa-trash"></i></button></div></div><div class="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-700"><div><label class="text-[10px] font-bold text-slate-400 uppercase">Responsável</label><p class="text-sm font-medium dark:text-slate-200"><i class="fas fa-user-circle text-indigo-400 mr-1"></i> ${d.responsavel||'--'}</p></div><div><label class="text-[10px] font-bold text-slate-400 uppercase">Logins</label>${icons}</div></div></div>`;
+            });
+        }
+
+        function abrirModalDispositivo(id=null) {
+            app.dispositivoEdicao = id;
+            document.getElementById('devicePagesList').innerHTML = '';
+            
+            const d = id ? app.dispositivos.find(x => x.id === id) : null;
+
+            app.paginas.forEach(p => {
+                const checked = d && d.paginasIds && d.paginasIds.includes(p.id) ? 'checked' : '';
+                document.getElementById('devicePagesList').innerHTML += `
+                    <label class="flex items-center gap-3 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer">
+                        <input type="checkbox" value="${p.id}" class="device-page-check text-indigo-600 rounded" ${checked}>
+                        <div class="flex items-center gap-2 text-xs">
+                             <div class="w-5 h-5 rounded flex items-center justify-center text-[8px] ${p.cor}">${p.isImage?`<img src="${p.logo}" class="profile-img">`:`<i class="fas ${p.logo}"></i>`}</div>
+                             <span class="dark:text-slate-300 font-bold">${p.nome}</span>
+                        </div>
+                    </label>
+                `;
+            });
+
+            if(d) {
+                document.getElementById('deviceModel').value = d.modelo;
+                document.getElementById('deviceResp').value = d.responsavel;
+                document.getElementById('deviceNumber').value = d.numero;
+            } else {
+                document.getElementById('deviceModel').value = '';
+                document.getElementById('deviceResp').value = '';
+                document.getElementById('deviceNumber').value = '';
+            }
+            abrirModal('modalDispositivo');
+        }
+
+        function salvarDispositivo() {
+            const modelo = document.getElementById('deviceModel').value;
+            const responsavel = document.getElementById('deviceResp').value;
+            const numero = document.getElementById('deviceNumber').value;
+            const checks = document.querySelectorAll('.device-page-check:checked');
+            const paginasIds = Array.from(checks).map(c => c.value);
+
+            if(!modelo) return alert("Informe o modelo");
+
+            if(app.dispositivoEdicao) {
+                const d = app.dispositivos.find(x => x.id === app.dispositivoEdicao);
+                d.modelo = modelo; d.responsavel = responsavel; d.numero = numero; d.paginasIds = paginasIds;
+            } else {
+                app.dispositivos.push({
+                    id: 'd_' + Date.now(),
+                    modelo, responsavel, numero, paginasIds
+                });
+            }
+            saveData(); fecharModal('modalDispositivo'); renderizarMainContent(); atualizarHeader();
+        }
+
+        // --- OUTRAS FUNÇÕES AUXILIARES ---
+        function atualizarWidget(id, val) { const p = app.paginas.find(x => x.id == app.paginaAtiva); const w = p.widgets.find(x => x.id == id); if(w) { w.value = val; saveData(); } }
+        function addCheckWidget(id, input) { if(input.value.trim()) { const p = app.paginas.find(x => x.id == app.paginaAtiva); const w = p.widgets.find(x => x.id == id); w.value.push({text:input.value, done:false}); saveData(); renderizarMainContent(); } }
+        function toggleCheckWidget(id, idx) { const p = app.paginas.find(x => x.id == app.paginaAtiva); const w = p.widgets.find(x => x.id == id); w.value[idx].done = !w.value[idx].done; saveData(); renderizarMainContent(); }
+        function delCheckWidget(id, idx) { const p = app.paginas.find(x => x.id == app.paginaAtiva); const w = p.widgets.find(x => x.id == id); w.value.splice(idx,1); saveData(); renderizarMainContent(); }
+        
+        function toggleHistorico(id) { const el = document.getElementById(`hist-${id}`); el.classList.toggle('hidden'); if(!el.classList.contains('hidden')) el.classList.add('history-expanded'); else el.classList.remove('history-expanded'); }
+        function abrirEditarQtd(id) { app.idParaEditarQtd = id; document.getElementById('editarQtdInput').value = app.blocos.find(x => x.id == id).qtd; abrirModal('modalQtd'); }
+        function salvarEdicaoQtd() { const b = app.blocos.find(x => x.id == app.idParaEditarQtd); const q = parseInt(document.getElementById('editarQtdInput').value); if(b && q) { b.qtd = q; saveData(); fecharModal('modalQtd'); renderizarMainContent(); atualizarHeaderStats(); } }
+        function editarPaginaAtual() { if(app.paginaAtiva) abrirRenomearPagina(app.paginaAtiva); }
+        function abrirRenomearPagina(id) { 
+            const p = app.paginas.find(x => x.id == id); 
+            document.getElementById('modalInputTitle').innerText = 'Editar Página'; 
+            document.getElementById('inputGeralNome').value = p.nome; 
+            document.getElementById('fieldNichoContainer').classList.remove('hidden'); 
+            document.getElementById('inputGeralNicho').value = p.nicho; 
+            document.getElementById('fieldImageContainer').classList.remove('hidden'); 
+            
+            app.imagemTemp = p.isImage ? p.logo : null;
+            if(app.imagemTemp) { document.getElementById('previewImg').src = app.imagemTemp; document.getElementById('previewImg').classList.remove('hidden'); document.getElementById('previewPlaceholder').classList.add('hidden'); }
+            
+            document.getElementById('btnSalvarGeral').onclick = function() { 
+                p.nome = document.getElementById('inputGeralNome').value; 
+                p.nicho = document.getElementById('inputGeralNicho').value; 
+                if(app.imagemTemp) { p.logo = app.imagemTemp; p.isImage = true; }
+                saveData(); fecharModal('modalInput'); renderizarSidebar(); atualizarHeader(); 
+            }; 
+            abrirModal('modalInput'); 
+        }
+        function editarNicho(nicho) { 
+            document.getElementById('modalInputTitle').innerText = 'Renomear Nicho'; 
+            document.getElementById('inputGeralNome').value = nicho; 
+            document.getElementById('fieldNichoContainer').classList.add('hidden'); 
+            document.getElementById('fieldImageContainer').classList.add('hidden'); 
+            document.getElementById('btnSalvarGeral').onclick = function() { 
+                const novo = document.getElementById('inputGeralNome').value; 
+                if(novo) { app.paginas.forEach(p => { if(p.nicho === nicho) p.nicho = novo; }); saveData(); fecharModal('modalInput'); renderizarSidebar(); } 
+            }; 
+            abrirModal('modalInput'); 
+        }
+
+        function abrirSinalPagina(id) {
+            app.paginaParaSinal = id;
+            selecionarCorSinal('amber'); 
+            abrirModal('modalSinal');
+        }
+
+        function selecionarCorSinal(cor) {
+            app.corSinalTemp = cor;
+            document.querySelectorAll('.signal-color-btn').forEach(btn => {
+                if(btn.dataset.color === cor) {
+                    btn.classList.add('ring-2', 'ring-offset-2', 'ring-indigo-300', 'dark:ring-indigo-500'); 
+                    btn.style.transform = "scale(1.1)";
+                } else {
+                    btn.classList.remove('ring-2', 'ring-offset-2', 'ring-indigo-300', 'dark:ring-indigo-500');
+                    btn.style.transform = "scale(1)";
+                }
+            });
+            
+            const map = {
+                'amber': 'hover:text-amber-500',
+                'red': 'hover:text-red-500',
+                'emerald': 'hover:text-emerald-500'
+            };
+            document.querySelectorAll('.icon-btn').forEach(btn => {
+                btn.className = btn.className.replace(/hover:text-\w+-500/g, map[cor]);
+            });
+        }
+
+        function salvarSinal(sinal) {
+            if (app.paginaParaSinal) {
+                const p = app.paginas.find(x => x.id == app.paginaParaSinal);
+                if (p) {
+                    p.sinal = sinal; 
+                    p.sinalCor = sinal ? app.corSinalTemp : null; 
+                    saveData();
+                    renderizarSidebar();
+                }
+            }
+            fecharModal('modalSinal');
+        }
+
+        function abrirModalCompartilhar(blocoId) {
+            app.blocoParaCompartilhar = blocoId;
+            const b = app.blocos.find(x => x.id === blocoId);
+            if (!b) return;
+
+            const lista = document.getElementById('listaCompartilhamento');
+            lista.innerHTML = '';
+
+            app.paginas.forEach(p => {
+                if (p.id !== app.paginaAtiva) {
+                    const isShared = b.shared_with && b.shared_with.includes(p.id);
+                    lista.innerHTML += `
+                        <label class="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded flex items-center justify-center text-[10px] ${p.cor} shadow-sm overflow-hidden bg-white dark:bg-slate-700">
+                                    ${p.isImage ? `<img src="${p.logo}" class="profile-img">` : `<i class="fas ${p.logo}"></i>`}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700 dark:text-slate-300">${p.nome}</div>
+                                    <div class="text-[10px] text-slate-400 uppercase tracking-wide">${p.nicho}</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" value="${p.id}" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 share-checkbox" ${isShared ? 'checked' : ''}>
+                        </label>
+                    `;
+                }
+            });
+            abrirModal('modalCompartilhar');
+        }
+
+        function salvarCompartilhamento() {
+            const b = app.blocos.find(x => x.id === app.blocoParaCompartilhar);
+            if (b) {
+                const checkboxes = document.querySelectorAll('.share-checkbox:checked');
+                const sharedIds = Array.from(checkboxes).map(cb => cb.value);
+                b.shared_with = sharedIds;
+                saveData();
+                renderizarMainContent(); 
+            }
+            fecharModal('modalCompartilhar');
+        }
+
+        function abrirModalNovoBloco() {
+            document.getElementById('blocoNome').value = '';
+            document.getElementById('blocoQtd').value = '';
+            document.getElementById('blocoData').value = new Date().toISOString().split('T')[0];
+            abrirModal('modalBloco');
+        }
+
+        function salvarBloco() {
+            const nome = document.getElementById('blocoNome').value;
+            const qtd = parseInt(document.getElementById('blocoQtd').value);
+            const data = document.getElementById('blocoData').value;
+            
+            if(nome && qtd) {
+                app.blocos.push({ 
+                    id: 'b_'+Date.now(), 
+                    pagina_id: app.paginaAtiva, 
+                    nome, 
+                    qtd, 
+                    versao: 1, 
+                    pai_id: null, 
+                    data_criacao: data || new Date().toISOString().split('T')[0], 
+                    usos: 0,
+                    shared_with: [], 
+                    usos_compartilhados: {},
+                    tags: [] 
+                });
+                saveData(); fecharModal('modalBloco'); renderizarMainContent();
+            }
+        }
+        
+        function abrirEditarBloco(id) {
+            app.idParaEditarGeral = id; 
+            const b = app.blocos.find(x => x.id == id);
+            document.getElementById('editarBlocoNome').value = b.nome; 
+            document.getElementById('editarBlocoQtd').value = b.qtd;
+            abrirModal('modalEditarBloco'); 
+        }
+
+        function salvarEdicaoBloco() {
+            const b = app.blocos.find(x => x.id == app.idParaEditarGeral); 
+            const n = document.getElementById('editarBlocoNome').value; 
+            const q = parseInt(document.getElementById('editarBlocoQtd').value); 
+            
+            if(b && n && q) { 
+                b.nome = n; 
+                b.qtd = q; 
+                saveData(); 
+                fecharModal('modalEditarBloco'); 
+                renderizarMainContent(); 
+                atualizarHeaderStats(); 
+            } 
+        }
+
+        function selecionarTipoWidget(type) { 
+            document.getElementById('widgetType').value = type; 
+            document.querySelectorAll('.widget-type-btn').forEach(btn => { 
+                if(btn.dataset.type === type) btn.classList.add('selected'); 
+                else btn.classList.remove('selected'); 
+            }); 
+            
+            const els = { 'link': 'extraLinkField', 'checklist': 'fieldChecklist', 'text': 'fieldText', 'signal': 'fieldSignalIcon' };
+            document.getElementById('extraLinkField').classList.add('hidden');
+            document.getElementById('fieldChecklist').classList.add('hidden');
+            document.getElementById('fieldText').classList.add('hidden');
+            document.getElementById('fieldSignalIcon').classList.add('hidden');
+            
+            // Logica para esconder/mostrar o campo de Titulo (Label)
+            const labelContainer = document.getElementById('fieldLabelContainer');
+            
+            if(type === 'link') {
+                document.getElementById('extraLinkField').classList.remove('hidden');
+                labelContainer.classList.remove('hidden');
+            }
+            else if(type === 'checklist') {
+                document.getElementById('fieldChecklist').classList.remove('hidden');
+                labelContainer.classList.remove('hidden');
+            }
+            else if(type === 'signal') {
+                document.getElementById('fieldSignalIcon').classList.remove('hidden');
+                document.getElementById('fieldText').classList.remove('hidden'); 
+                labelContainer.classList.add('hidden'); 
+            }
+            else { 
+                document.getElementById('fieldText').classList.remove('hidden');
+                labelContainer.classList.remove('hidden');
+            }
+        }
+
+        function selectWidgetIcon(btn, icon) {
+            document.getElementById('selectedIconValue').value = icon;
+            document.querySelectorAll('.signal-select-btn').forEach(b => {
+                b.classList.remove('selected', 'border-indigo-500', 'text-indigo-600', 'ring-2', 'ring-indigo-200');
+            });
+            btn.classList.add('selected', 'border-indigo-500', 'text-indigo-600', 'ring-2', 'ring-indigo-200');
+        }
+
+        function addTempCheckItem() { 
+            const input = document.getElementById('tempCheckItem'); 
+            if(input.value.trim()) { 
+                app.tempChecklist.push({ text: input.value.trim(), done: false }); 
+                input.value = ''; 
+                renderTempChecklist(); 
+                input.focus();
+            } 
+        }
+        
+        function handleEnterCheck(e) { if(e.key === 'Enter') addTempCheckItem(); }
+
+        function renderTempChecklist() { 
+            const list = document.getElementById('tempChecklistList'); 
+            list.innerHTML = app.tempChecklist.map((item, idx) => `
+                <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 p-2 rounded border border-slate-100 dark:border-slate-700 text-sm">
+                    <span class="text-slate-700 dark:text-slate-300 flex-1-1 break-words pr-2">${item.text}</span>
+                    <button onclick="app.tempChecklist.splice(${idx}, 1); renderTempChecklist()" class="text-slate-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                </div>`).join('') || '<div class="text-xs text-slate-400 text-center py-2">Lista vazia</div>'; 
+        }
+
+        function salvarNovoWidget() { 
+            const p = app.paginas.find(x => x.id == app.paginaAtiva); 
+            const type = document.getElementById('widgetType').value;
+            let label = document.getElementById('widgetLabel').value; 
+            
+            if(type === 'signal') {
+                label = document.getElementById('selectedIconValue').value;
+                if(!label) return alert("Selecione um símbolo!");
+            } else {
+                if(!label) return alert("Defina um título!");
+            }
+            
+            p.widgets.push({ 
+                id: 'w_' + Date.now(), 
+                type: type, 
+                label: label, 
+                value: document.getElementById('widgetType').value === 'checklist' ? [...app.tempChecklist] : '', 
+                url: document.getElementById('widgetUrl').value 
+            }); 
+            saveData(); fecharModal('modalWidget'); renderizarMainContent(); 
+        }
+
+        function abrirModalNovoWidget() { 
+            selecionarTipoWidget('short'); 
+            document.getElementById('widgetLabel').value = ''; 
+            document.getElementById('widgetUrl').value = ''; 
+            document.getElementById('selectedIconValue').value = '';
+            document.querySelectorAll('.signal-select-btn').forEach(b => b.classList.remove('selected', 'ring-2'));
+            app.tempChecklist = []; 
+            renderTempChecklist(); 
+            abrirModal('modalWidget'); 
+        }
+
+        function previewImagem(event) { 
+            const input = event.target; 
+            if (input.files && input.files[0]) { 
+                const reader = new FileReader(); 
+                reader.onload = function(evt) { 
+                    app.imagemTemp = evt.target.result; 
+                    document.getElementById('previewImg').src=evt.target.result; 
+                    document.getElementById('previewImg').classList.remove('hidden'); 
+                    document.getElementById('previewPlaceholder').classList.add('hidden'); 
+                }; 
+                reader.readAsDataURL(input.files[0]); 
+            } 
+        }
+        
+        function abrirModalPagina() {
+            document.getElementById('modalInputTitle').innerText = 'Nova Página';
+            document.getElementById('labelNomeField').innerText = 'Nome (@usuario)';
+            document.getElementById('inputGeralNome').value = '';
+            document.getElementById('inputGeralNicho').value = '';
+            document.getElementById('fieldNichoContainer').classList.remove('hidden');
+            document.getElementById('fieldImageContainer').classList.remove('hidden');
+            
+            app.imagemTemp = null;
+            document.getElementById('previewImg').src = '';
+            document.getElementById('previewImg').classList.add('hidden');
+            document.getElementById('previewPlaceholder').classList.remove('hidden');
+            document.getElementById('inputGeralFile').value = '';
+
+            document.getElementById('btnSalvarGeral').onclick = function() {
+                const nome = document.getElementById('inputGeralNome').value;
+                const nicho = document.getElementById('inputGeralNicho').value || 'Geral';
+                if(nome) {
+                    const nova = { 
+                        id: 'p_' + Date.now(), 
+                        nome, 
+                        nicho, 
+                        logo: app.imagemTemp || 'fa-hashtag', 
+                        isImage: !!app.imagemTemp, 
+                        cor: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300',
+                        widgets: [
+                            { id: 'w_' + Date.now() + '1', type: 'long', label: 'Objetivos', value: '' },
+                            { id: 'w_' + Date.now() + '2', type: 'short', label: 'Meta Mensal', value: '30' }
+                        ]
+                    };
+                    app.paginas.push(nova);
+                    app.paginaAtiva = nova.id;
+                    saveData();
+                    fecharModal('modalInput');
+                    renderizarSidebar();
+                    renderizarMainContent();
+                    atualizarHeader();
+                } else {
+                    document.getElementById('inputGeralNome').focus();
+                }
+            };
+            abrirModal('modalInput');
+        }
+
+        function evoluirBloco(id) { 
+            app.idParaEvoluir = id; 
+            document.getElementById('evoluirQtd').value = ''; 
+            abrirModal('modalEvoluir'); 
+        }
+        
+        function salvarEvolucao() {
+            const pai = app.blocos.find(x => x.id == app.idParaEvoluir);
+            const qtd = parseInt(document.getElementById('evoluirQtd').value);
+            if(pai && qtd) {
+                app.blocos.push({ 
+                    id: 'b_'+Date.now(), 
+                    pagina_id: pai.pagina_id, 
+                    nome: pai.nome, 
+                    qtd, 
+                    versao: pai.versao+1, 
+                    pai_id: pai.id, 
+                    data_criacao: new Date().toISOString().split('T')[0], 
+                    usos: 0,
+                    // Herança de compartilhamento adicionada conforme solicitado
+                    shared_with: [...(pai.shared_with || [])], 
+                    usos_compartilhados: {},
+                    tags: [...(pai.tags || [])]
+                });
+                saveData(); fecharModal('modalEvoluir'); renderizarMainContent();
+            }
+        }
+
+        function solicitarExclusao(tipo, id) {
+            app.exclusao = { tipo, id };
+            document.getElementById('senhaExclusao').value = '';
+            document.getElementById('erroSenha').classList.add('hidden');
+            const map = { 
+                'pagina': 'Excluir PÁGINA e todo o conteúdo?', 
+                'nicho': 'Excluir NICHO e todas as páginas?', 
+                'bloco': 'Excluir este GRUPO permanentemente?', 
+                'widget': 'Remover este BLOCO da tela?', 
+                'dispositivo': 'Remover aparelho?' 
+            };
+            document.getElementById('msgExclusao').innerText = map[tipo] || 'Tem certeza?';
+            abrirModal('modalExcluir');
+        }
+
+        function confirmarExclusao() {
+            // Alterado para senha mestre padrão fixa
+            if(document.getElementById('senhaExclusao').value !== MASTER_ADMIN_PASS) {
+                document.getElementById('erroSenha').classList.remove('hidden'); return;
+            }
+            const { tipo, id } = app.exclusao;
+            if(tipo === 'pagina') {
+                app.paginas = app.paginas.filter(p => p.id != id);
+                app.blocos = app.blocos.filter(b => b.pagina_id != id);
+                if(app.paginaAtiva == id) app.paginaAtiva = app.paginas[0]?.id || null;
+            } else if (tipo === 'bloco') {
+                app.blocos = app.blocos.filter(b => b.id != id);
+            } else if (tipo === 'nicho') {
+                app.paginas = app.paginas.filter(p => p.nicho !== id);
+                if(!app.paginas.find(p => p.id == app.paginaAtiva)) app.paginaAtiva = app.paginas[0]?.id || null;
+            } else if (tipo === 'widget') {
+                const p = app.paginas.find(x => x.id == app.paginaAtiva);
+                p.widgets = p.widgets.filter(w => w.id != id);
+            } else if (tipo === 'dispositivo') {
+                app.dispositivos = app.dispositivos.filter(d => d.id != id);
+            }
+            saveData(); fecharModal('modalExcluir'); renderizarSidebar(); renderizarMainContent(); atualizarHeader();
+        }
+
+        function abrirModalUso(id) {
+            app.blocoSelecionadoId = id;
+            const b = app.blocos.find(x => x.id == id);
+            
+            let lastData = new Date().toISOString().split('T')[0];
+            let lastObs = '';
+            
+            document.getElementById('usoDataUtilizacao').value = lastData;
+            document.getElementById('usoDataLiberacao').value = ''; 
+            document.getElementById('usoObs').value = lastObs;
+            
+            setarLiberacao(90);
+            
+            abrirModal('modalUso');
+        }
+
+        function setarLiberacao(dias) {
+            const dInput = document.getElementById('usoDataUtilizacao').value;
+            if(!dInput) return;
+            const d = new Date(dInput);
+            d.setDate(d.getDate() + dias);
+            document.getElementById('usoDataLiberacao').value = d.toISOString().split('T')[0];
+        }
+
+        function salvarUso() {
+            const b = app.blocos.find(x => x.id == app.blocoSelecionadoId);
+            if(b) {
+                if (b.pagina_id === app.paginaAtiva) {
+                    b.data_uso = document.getElementById('usoDataUtilizacao').value;
+                    b.data_liberacao = document.getElementById('usoDataLiberacao').value;
+                    b.obs = document.getElementById('usoObs').value;
+                    b.usos = (b.usos||0)+1;
+                } else {
+                    if(!b.usos_compartilhados) b.usos_compartilhados = {};
+                    const currentUsage = b.usos_compartilhados[app.paginaAtiva] || { usos: 0 };
+                    
+                    b.usos_compartilhados[app.paginaAtiva] = {
+                        data_uso: document.getElementById('usoDataUtilizacao').value,
+                        data_liberacao: document.getElementById('usoDataLiberacao').value,
+                        obs: document.getElementById('usoObs').value,
+                        usos: (currentUsage.usos || 0) + 1
+                    };
+                }
+                saveData(); fecharModal('modalUso'); renderizarMainContent();
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
