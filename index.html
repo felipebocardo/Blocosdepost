@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ContentManager Pro | Gestão Estratégica</title>
     <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -456,10 +455,10 @@
 
     <!-- SCRIPT DA APLICAÇÃO -->
     <script>
-// --- CONFIGURAÇÃO DO SUPABASE ---
+
 // Substitua ABAIXO pelos seus dados reais do Supabase (Project Settings > API)
 const SU_URL = 'sb_publishable_b7rS85fwbaXZ862hmeKQTA__6RADKNt'; 
-const SU_KEY = 'sb_secret_aQPkNMy1KBYWuuBlvbruoA_YfnlzuDg';        
+const SU_KEY = 'sb_secret_aQPkNMy1KBYWuuBlvbruoA_YfnlzuDg'
 
 // Inicializa o cliente
 const supabase = window.supabase ? window.supabase.createClient(SU_URL, SU_KEY) : null;
@@ -772,7 +771,7 @@ async function syncToSupabase() {
             return `${d}/${m}/${a}`; 
         }
 
-        async function loadData()  {
+        async function loadData() {
 const theme = localStorage.getItem('cm_theme');
     // ADIÇÃO: Tentar buscar do Supabase primeiro
     try {
@@ -792,6 +791,9 @@ const theme = localStorage.getItem('cm_theme');
     const theme = localStorage.getItem('cm_theme');
     // ...
  {
+
+
+{
             const theme = localStorage.getItem('cm_theme');
             if (theme === 'dark') document.documentElement.classList.add('dark');
 
@@ -834,22 +836,7 @@ const theme = localStorage.getItem('cm_theme');
             }
         }
 
-        function saveData(){
-    try {
-        localStorage.setItem('cm_paginas', JSON.stringify(app.paginas));
-        localStorage.setItem('cm_blocos', JSON.stringify(app.blocos));
-        localStorage.setItem('cm_dispositivos', JSON.stringify(app.dispositivos));
-        if(app.paginaAtiva) localStorage.setItem('cm_active_page', app.paginaAtiva);
-        
-        // ADIÇÃO: Salvar também no Supabase
-        syncToSupabase(); 
-        
-    } catch (e) {
-        console.error('Erro ao salvar:', e);
-        alert('Erro ao salvar dados localmente (Quota excedida?)');
-    }
-}
- {
+        function saveData() {
             try {
                 localStorage.setItem('cm_paginas', JSON.stringify(app.paginas));
                 localStorage.setItem('cm_blocos', JSON.stringify(app.blocos));
@@ -905,38 +892,31 @@ const theme = localStorage.getItem('cm_theme');
                 localStorage.setItem('cm_theme', 'dark');
             }
         }
-
-        // --- INICIALIZAÇÃO ---
-
-// --- SUBSTITUA A FUNÇÃO INIT POR ESTA ---
-async function init() {
-    // AQUI ESTAVA O ERRO: O 'await' só funciona se a função for 'async'
-    await loadData(); 
-    
-    // Verifica se é a primeira vez (sem dados)
-    if (app.paginas.length === 0 && !localStorage.getItem('cm_welcome')) {
-        createDemoData();
-        localStorage.setItem('cm_welcome', 'true');
+syncToSupabase(); 
+        
+    } catch (e) {
+        console.error('Erro ao salvar:', e);
+        alert('Erro ao salvar dados localmente (Quota excedida?)');
     }
-    
-    checkAuth();
-
-    renderizarSidebar();
-    
-    // Define a página inicial se houver páginas
-    if(app.paginas.length > 0 && !app.paginaAtiva) {
-        app.paginaAtiva = app.paginas[0].id;
-    }
-    
-    renderizarMainContent();
-    atualizarHeader();
-    updateDatalistNichos();
 }
+ {
+        // --- INICIALIZAÇÃO ---
+        async function init() {
+            await loadData();
+            if (app.paginas.length === 0 && !localStorage.getItem('cm_welcome')) {
+                createDemoData();
+                localStorage.setItem('cm_welcome', 'true');
+            }
+            
+            checkAuth();
 
-// Certifique-se que o final do arquivo está assim:
-window.onload = init;
+            renderizarSidebar();
+            if(app.paginas.length > 0 && !app.paginaAtiva) app.paginaAtiva = app.paginas[0].id;
+            renderizarMainContent();
+            atualizarHeader();
+            updateDatalistNichos();
+        }
 
-       
         // --- NAVEGAÇÃO E UI ---
         function toggleSidebar() {
             const sidebar = document.getElementById('mainSidebar');
