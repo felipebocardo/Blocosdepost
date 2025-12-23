@@ -455,28 +455,6 @@
 
     <!-- SCRIPT DA APLICAÇÃO -->
     <script>
-
-// Substitua ABAIXO pelos seus dados reais do Supabase (Project Settings > API)
-const SU_URL = 'sb_publishable_b7rS85fwbaXZ862hmeKQTA__6RADKNt'; 
-const SU_KEY = 'sb_secret_aQPkNMy1KBYWuuBlvbruoA_YfnlzuDg'
-
-// Inicializa o cliente
-const supabase = window.supabase ? window.supabase.createClient(SU_URL, SU_KEY) : null;
-
-// Função para salvar no banco (Sincronização)
-async function syncToSupabase() {
-    if (!supabase) return;
-    try {
-        await supabase.from('app_storage').upsert([
-            { key: 'cm_paginas', value: app.paginas },
-            { key: 'cm_blocos', value: app.blocos },
-            { key: 'cm_dispositivos', value: app.dispositivos }
-        ]);
-        console.log('Dados salvos no Supabase com sucesso.');
-    } catch (e) {
-        console.error('Erro na sincronização Supabase:', e);
-    }
-}
         // --- SENHA MESTRE DE ADM ---
         const MASTER_ADMIN_PASS = "384157";
 
@@ -772,28 +750,6 @@ async function syncToSupabase() {
         }
 
         async function loadData() {
-const theme = localStorage.getItem('cm_theme');
-    // ADIÇÃO: Tentar buscar do Supabase primeiro
-    try {
-        const { data, error } = await supabase.from('app_storage').select('*');
-        if (data && data.length > 0) {
-            data.forEach(row => {
-                if(row.key === 'cm_paginas') localStorage.setItem('cm_paginas', JSON.stringify(row.value));
-                if(row.key === 'cm_blocos') localStorage.setItem('cm_blocos', JSON.stringify(row.value));
-                if(row.key === 'cm_dispositivos') localStorage.setItem('cm_dispositivos', JSON.stringify(row.value));
-            });
-        }
-    } catch (e) {
-        console.log('Usando cache local ou offline');
-    }
-
-    // ... (o restante do seu código original continua aqui sem alterações) ...
-    const theme = localStorage.getItem('cm_theme');
-    // ...
- {
-
-
-{
             const theme = localStorage.getItem('cm_theme');
             if (theme === 'dark') document.documentElement.classList.add('dark');
 
@@ -892,14 +848,7 @@ const theme = localStorage.getItem('cm_theme');
                 localStorage.setItem('cm_theme', 'dark');
             }
         }
-syncToSupabase(); 
-        
-    } catch (e) {
-        console.error('Erro ao salvar:', e);
-        alert('Erro ao salvar dados localmente (Quota excedida?)');
-    }
-}
- {
+
         // --- INICIALIZAÇÃO ---
         async function init() {
             await loadData();
